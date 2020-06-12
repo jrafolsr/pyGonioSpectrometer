@@ -211,7 +211,7 @@ app.layout = html.Div(children =  [
               dcc.Input(id="folder-input",
                         type="text",
                         placeholder="Folder",
-                        value = r'C:\Users\JOANRR\Documents',
+                        value = r'C:\Users\OPEGLAB\Documents\data',
                         size = '40'),
               html.Span(id = 'folder-exist', children = '')
               ]),
@@ -264,7 +264,7 @@ def enable_buttons(on, resource_spectrometer,resource_gonio, integration_time):
         else:
             
             print('INFO: Instrument is off')
-            gonio.disable_gonio()
+#            gonio.disable_gonio()
             gonio.close()
             flame.close()
             sleep(1)
@@ -532,7 +532,6 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
             ymax = y.max()
             y /= ymax
             popt, _ = curve_fit(pol2_sym,x,y,p0 = [-1e-6,1,0])
-            print(popt)
             x0 = popt[2]
             x1 = np.linspace(x.min(),x.max(),101)
             y1 = pol2_sym(x1, *popt) * ymax

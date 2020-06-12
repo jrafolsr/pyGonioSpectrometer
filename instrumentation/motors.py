@@ -38,12 +38,16 @@ class ArduinoMotorController():
     """AN object that controls the communication and movement of the motors via the Arduino"""
     def __init__(self, port):
         self.port = port
+        if port is None:
+            raise Exception('ERROR: COM port not provided')
+            
         self.motor = rm.open_resource(port)
+        # Clear the buffer
+        self.motor.clear()
         self.motor.read_termination = '\r\n'
         self.motor.write_termination = '\n'
         sleep(0.500)
-        # Clear the buffer
-        self.motor.clear()
+
         
     def close(self):
         """Close the resource"""

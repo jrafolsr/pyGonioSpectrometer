@@ -25,7 +25,9 @@ class SpectraMeasurement():
     """Wrapper to for the Spectrometer class that helps to perform measurements, from configurating the spectrometers to return spetra averages."""
     def __init__(self, device, integration_time = 1, n_spectra = 1):
         """Initalize all values"""
-        if type(device) is str:
+        if device is None:
+            raise Exception('ERROR: USB spectrometer port not provided')
+        elif type(device) is str:
             self.spec = Spectrometer.from_serial_number(device)
         else:
             self.spec = Spectrometer(device)
@@ -51,7 +53,12 @@ class SpectraMeasurement():
         return self.wavelengths[20:] # The first 20 pixels are not valid
     
     def get_intensities(self):
-        self.intensities = self.spec.intensities(self.correct_dark_counts, self.correct_nonlinearity)
+        try:
+            self.intensities = self.spec.intensities(self.correct_dark_counts, self.correct_nonlinearity)
+        except Exception as e:
+            print(e)
+            self.spec.close()
+            
         return self.intensities[20:] # The first 20 pixels are not valid
     
     def get_averaged_intensities(self):
