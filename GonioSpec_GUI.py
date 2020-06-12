@@ -371,7 +371,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Open the shutter
     gonio.move_shutter()
     sleep(WAIT_TIME)
-    Beep(3000, WAIT_TIME) # Waiting TI
+    Beep(3000, WAIT_TIME)
     
     # Take 1st spectra at zero
     print('INFO: Taking 0° spectra....')
