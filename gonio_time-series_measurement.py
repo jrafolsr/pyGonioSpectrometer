@@ -28,7 +28,7 @@ n_spectra = 10
 disable_gonio = False
 plot = False
 # Define variables for the time series
-interval = 180 # interval to wait in seconds
+interval = 300 # interval to wait in seconds
 
 
 def sleep_tuned(seconds):
