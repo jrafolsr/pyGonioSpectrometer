@@ -6,7 +6,7 @@ Created on Thu Jun 11 15:25:55 2020
 """
 #%%
 from os.path import join as pjoin
-from time import sleep
+from time import sleep, time
 import numpy as np
 from matplotlib import pyplot as plt
 from datetime import datetime
@@ -40,6 +40,8 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
                       filename = 'gonio_mesurement', folder = '.',\
                       disable_gonio = False, plot = True):
+    
+   
     gonio = None
     flame = None
     try:
@@ -69,22 +71,39 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
             ax.set_xlabel('Wavelength (nm)')
             plot_measurement(fig, ax, [], [])
         
+        # Timestamps for the header and filename
+        itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+        timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
+        start_time = time()
+        
+        path = pjoin(folder, timestamp + '_'+ filename + '.dat')
+        
+        with open(path, 'a') as f:
+            f.write(timestamp + ' # Timestamp at the beginning of the measurement\n')
+            f.write(f'{integration_time:.0f} # Integration time in (ms)\n')
+            f.write(f'{n_spectra:d} # Number of spectra taken\n')
+              
         # Take the dark spectra at zero
         wavelengths = flame.get_wavelengths()
+        # Saving the data in the new scheme
+        write_to_file(time()-start_time, np.nan, wavelengths, path)
         data[:,0] = wavelengths
         
         winsound.Beep(frequency, duration*2) # It will remind that the measureement starts
         
         print('INFO: Taking dark spectra....')
         temp = flame.get_averaged_intensities()
+        # Saving the data in the new scheme
+        write_to_file(time()-start_time, np.nan, temp, path)
+      
         if plot: plot_measurement(fig, ax, wavelengths, temp, 'dark')
+        # Saving the data in Mattias's scheme
         data[:,1] = temp
         sleep(0.25)
+        
         # Open the shutter, assuming it is closed
         gonio.move_shutter()
-        # Timestamps for the header and filename
-        itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
-        timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
+
         
         [winsound.Beep(frequency,200) for i in range (5)] # Reminder of measurement starting
         sleep(WAIT_TIME*2)
@@ -93,7 +112,11 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print('>>>>>>>>>>>>>>> STEP 0 <<<<<<<<<<<<<<<')
         print('INFO: Taking spectra at 0.00°...')
         temp = flame.get_averaged_intensities()
+        # Saving the data in the new scheme
+        write_to_file(time()-start_time, 0.0, temp, path)
+        
         if plot: plot_measurement(fig, ax, wavelengths, temp, '0.0°')
+        # Saving the data in Mattias's scheme
         data[:,2] = temp
         first_row[0,2] = 0.0
         
@@ -118,6 +141,9 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
             first_row[0, k + 3] = current_angle
             # Get the whole spectra (wl and I)
             temp = flame.get_averaged_intensities()
+            # Saving the data in the new scheme
+            write_to_file(time()-start_time, current_angle, temp, path)
+            # Saving the data in Mattias's scheme
             data[:, k + 3] = temp
         
             # Check for any values higher than saturation
@@ -144,6 +170,9 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print(f'INFO: Taking spectra at {current_angle:.1f}°...')
         first_row[0,k + 4] = current_angle
         temp = flame.get_averaged_intensities()
+        # Saving the data in the new scheme
+        write_to_file(time()-start_time, current_angle, temp, path)
+        # Saving the data in Mattias's scheme        
         data[:,k + 4] = temp
         
         if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
@@ -159,6 +188,9 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         # Wait longer time, as the angle is larger and take the spectra
         sleep(WAIT_TIME*2)
         temp = flame.get_averaged_intensities()
+        # Saving the data in the new scheme
+        write_to_file(time()-start_time, current_angle, temp, path)
+        # Saving the data in Mattias's scheme        
         data[:, k + 5] = temp
         
         if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
@@ -166,12 +198,12 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         # Closing shutter
         gonio.move_shutter()
         
-        # Saving the data code snippet
+        # Saving the data code snippet in with Mattias' scheme
         ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+        path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
         data = np.vstack([first_row, data])       
-        path = pjoin(folder, timestamp + '_'+ filename + '.dat')
         header = itimestamp + '\n' + ftimestamp
-        np.savetxt(path, data, fmt = '% 8.2f', header= header)
+        np.savetxt(path2, data, fmt = '% 8.2f', header= header)
         
         print('INFO: Measurement finished data saved at\n\t' + path)
         
@@ -192,6 +224,13 @@ def plot_measurement(fig, ax, x, y, label = None):
     if label is not None:
         ax.legend()
     plt.pause(0.25)
+    
+def write_to_file(etime, angle, data, file):
+    t  = np.hstack((etime, angle, data))
+    t = t.reshape((1, t.shape[0]))
+    with open(file, 'a') as f:
+       np.savetxt(f, t, fmt = '% 8.2f')
+
     
 if __name__ == '__main__':
     gonio_measurement(name_motor, angle_max, angle_step, name_spectrometer, integration_time, n_spectra)
