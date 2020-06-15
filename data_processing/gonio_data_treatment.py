@@ -14,7 +14,7 @@ fcal = r'.\calibration_files'
 
 # Instrument response function, 160504 ML
 temp = loadmat(pjoin(fcal, 'GonioSpec_IRF_160504'))
-IRF = temp['GonioSpec_IRF_160504'][:,[1]]
+IRF = temp['GonioSpec_IRF_160504'][:,[1]].T
 
 # Eye response function
 temp = loadmat(pjoin(fcal, 'CIE1988photopic.mat'))
@@ -23,27 +23,29 @@ EyeResponse = temp['CIE1988Photopic']
 ABS_CALFACTOR = 5.4178e6 # Absolute numbers calibration factor, 170224 ML
 PIXEL_SIZE = 4e-6 # m^2, Size of a McScience substrate pixel. Equipment is designed to be used with these substrates only.
 
-def read_gonio_spec(file, correct_offset = True, current = None, plot = False):
+def process_goniodata(file, correct_offset = True, current = None, plot = False):
     """Read the file created by the setup Gonio spectrometer 3.0"""
 
     # First 3-row contains the starting time, the  integration time and the averaged times
-    iTime = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
+#    iTime = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
     IntTime, Nscans = np.loadtxt(file, skiprows = 1, max_rows = 2, unpack = True)
 
     # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
     data = np.loadtxt(file, skiprows = 3)
-    vTime = data[:,0]
-    Angles = data[:,1]
+    vTimes = data[2:,0]
+    vTimes -= vTimes[0] # Zero the time vector to the first spectra adquisition
+    Angles = data[2:,1]
     Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
     Spectra = MeasSpectra - DarkSpectra
     # Sort the Data
     isort =  Angles.argsort() # Get the indices that will sort the data based on angles
+    vTimes = vTimes[isort]
     Angles = Angles[isort]
     Spectra = Spectra[isort, :]
     
     if correct_offset:
         # Automatically find the symmetry axis assuming parabola (rought)
-        angle_offset= find_symmetry(Wavelengths, Angles, Spectra, plot = plot)
+        angle_offset= find_symmetry(Wavelengths, Angles[5:-5], Spectra[5:-5,:], plot = plot)
         Angles -=  angle_offset
     else:
         print('INFO: No correction for the zero-angle offset is applied.')
@@ -51,17 +53,14 @@ def read_gonio_spec(file, correct_offset = True, current = None, plot = False):
     # Processing the data using all the corrections needed
     # The spectral radiant intensity [W sr-1 nm-1]
     SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (IntTime/1000)
-    
     # The spectral luminous intensity [lm sr-1 nm-1]
-    SpecLumInt = SpecRadInt * photopic_eye_response(Wavelengths)     
+    SpecLumInt = SpecRadInt * photopic_eye_response(Wavelengths)    
     
     # Luminous intensity, the integral of contributions from all wavelengths [lm sr-1 = cd]
 #     print(SpecLumInt.shape, Wavelengths.shape)
     LumInt = np.trapz(SpecLumInt,Wavelengths, axis =  1)
-    L0 =  np.interp(0.0, Angles, LumInt)    
+    L0 =  np.interp(0.0, Angles, LumInt)
     LumIntNorm = LumInt / L0   # Normalization for the 0 deg interpolated  
-#     LumIntNorm = LumInt / LumInt[zeros_ff].mean()      # Normalization for the 0 deg measurements 
-#     print(LumIntNorm, LumInt / LumInt[zeros_ff].mean())
     
     # Luminance, Projected area correction that gives Luminance [cd m-2]
     Luminance = LumInt / np.cos(Angles * np.pi / 180.0) / PIXEL_SIZE
@@ -69,8 +68,7 @@ def read_gonio_spec(file, correct_offset = True, current = None, plot = False):
     LuminanceNorm = LumIntNorm / np.cos(Angles * np.pi / 180.0)
     
     # Forward direction luminance (mean of all "zero" degree angles) [cd m-2]
-    Fw_Luminance = L0
-    # Fw_Luminance = Luminance[zeros_ff].mean()
+    Fw_Luminance = np.interp(0.0, Angles, Luminance)
     # Forward direction current efficacy [cd/A]
     Fw_Current_eff = (Fw_Luminance * PIXEL_SIZE ) / current if current != None else np.nan
     
@@ -78,17 +76,57 @@ def read_gonio_spec(file, correct_offset = True, current = None, plot = False):
     EQE = eqe_calculator(Wavelengths,Angles, SpecRadInt, current) if current != None else np.nan
     # Lambertian factor calculation
     Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot)
-
-    print(f'L0 =  {Fw_Luminance:.2f} cd m-2')
-    print(f'EQE =  {EQE:.2f} %')
-    print(f'CE =  {Fw_Current_eff:.2f} cd A-1')
-    print(f'Lambertian Corr. Factor =  {Lamb_Corr_Factor:.4f}')
     
+    text = f'# Angle_offset = {angle_offset:.2f}°\n' if correct_offset else '# Angle_offset = nan\n'
+    text += f'# I = {current*1000:.2f} mA\n' if current != None else '# Current = nan mA\n'
+    text += f'# L0 =  {Fw_Luminance:.2f} cd m-2\n'
+    text += f'# EQE =  {EQE:.2f} %\n'
+    text += f'# CE =  {Fw_Current_eff:.2f} cd A-1\n'
+    text += f'# Lambertian Corr. Factor =  {Lamb_Corr_Factor:.4f}\n'
+    print(text)
+    
+    # Saving the integrated part of the data
+    fintegrated = file[:-4] + '.integrated'
+    with open(fintegrated, 'w') as f:
+        f.write(text)
+    tdata = np.vstack((Angles, LumInt, LumIntNorm, Luminance, LuminanceNorm)).T
+                      
+    with open(fintegrated, 'a') as f:
+        header = 'Angles\t LuminousIntensity \t NormLuminousInensity \t Luminance\t NormLuminance\n'
+        header += ' ° \t cd \t a.u. \t  cd m-2\t a.u.'
+        np.savetxt(f, tdata, fmt = '% 10.6g\t', header = header)
+    
+    # Saving the spectral part of the data
+    fradiometric = file[:-4] + '.sri'
+    n = len(Angles)
+    with open(fradiometric, 'w') as f:
+        tdata = np.hstack((np.nan, vTimes))
+        np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'ellapsedTime (s)', delimiter='\t')
+        tdata = np.hstack((np.nan, Angles))
+        np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'angles (°)',delimiter='\t')
+        tdata = np.vstack((Wavelengths.reshape(1, len(Wavelengths)), SpecRadInt)).T
+        fmt = ['%10.2f'] + ['%10.6e' for i in range(n)]
+        np.savetxt(f, tdata, fmt = fmt, header = 'Wavelengths\t AngularSpectralRadiantIntensity', delimiter='\t')
+        
+    # Saving the spectral part of the data
+    fphotometric = file[:-4] + '.sli'
+    n = len(Angles)
+    with open(fphotometric, 'w') as f:
+        tdata = np.hstack((np.nan, vTimes))
+        np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'ellapsedTime (s)', delimiter='\t')
+        tdata = np.hstack((np.nan, Angles))
+        np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'angles (°)',delimiter='\t')
+        tdata = np.vstack((Wavelengths.reshape(1, len(Wavelengths)), SpecLumInt)).T
+        fmt = ['%10.2f'] + ['%10.6e' for i in range(n)]
+        np.savetxt(f, tdata, fmt = fmt, header = 'Wavelengths\t AngularSpectralLuminousIntensity', delimiter='\t')
+    
+    
+        
     if plot:
         fig, [ax,ax1] = plt.subplots(ncols=2, figsize = (8,4))
         ff_wl = (Wavelengths >= 380) &( Wavelengths <= 780)
-        ax.pcolormesh(Angles,Wavelengths[ff_wl],SpecRadInt[ff_wl,:], cmap = 'inferno')
-        ax1.pcolormesh(Angles,Wavelengths[ff_wl],SpecLumInt[ff_wl,:], cmap = 'inferno')
+        ax.pcolormesh(Angles,Wavelengths[ff_wl],SpecRadInt[:, ff_wl].T, cmap = 'inferno')
+        ax1.pcolormesh(Angles,Wavelengths[ff_wl],SpecLumInt[:,ff_wl].T, cmap = 'inferno')
         ax.set_ylabel('Wavelength (nm)')
         ax1.set_ylabel('Wavelength (nm)')
         ax.set_title('Spectral Radiant Intensity\n($W\cdot sr^{-1}\cdot nm^{-1}$)')
@@ -99,7 +137,7 @@ def read_gonio_spec(file, correct_offset = True, current = None, plot = False):
         ax1.set_xlim(-90,90)
     
     return IntTime, Nscans, Angles, Wavelengths,\
-            SpecRadInt,SpecLumInt, LumIntNorm, Luminance,LuminanceNorm,\
+            SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm,\
             Fw_Luminance,Fw_Current_eff, EQE
 
 def find_symmetry(wavelengths,angles,spectra, plot = False):
@@ -117,9 +155,10 @@ def find_symmetry(wavelengths,angles,spectra, plot = False):
     
     if plot:
         fig, ax = plt.subplots()
+        ax.set_title(f'Symmetry axis = {angle_offset:.2f}°')
         x = np.arange(-90,95,5)
         ax.plot(angles, Ie, 'o')
-        ax.plot(x, np.polyval(popt, x))
+        ax.plot(x, pol2_sym(x, *popt))
         ax.axvline(angle_offset,  c= 'black', ls = '--')
 
     print('INFO: Angle offset correction applied. Offset = {:.2f}°'.format(angle_offset))
@@ -128,7 +167,7 @@ def find_symmetry(wavelengths,angles,spectra, plot = False):
 
 
 def photopic_eye_response(wl):
-    return (683.002 * np.interp(wl,EyeResponse[:,0], EyeResponse[:,1])).reshape(len(wl),1)
+    return (683.002 * np.interp(wl,EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(wl))
 
 def lambertian_correction_factor(angle, Iph, plot = False):
     """Calculates the Lambertian correction factor, see Lindh's work
@@ -196,3 +235,8 @@ def eqe_calculator(wl, angles, sr_intensity, current):
 
 #     print(f'EQE =  {EQE:.2f} %')
     return EQE
+
+if __name__ == '__main__':
+    IntTime, Nscans, Angles, Wavelengths,\
+            SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm,\
+            Fw_Luminance,Fw_Current_eff, EQE = process_goniodata(r'..\2020-06-15T17h09m40s_gonio_mesurement.dat', current=0.001, plot = True)

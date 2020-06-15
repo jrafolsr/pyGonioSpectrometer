@@ -29,7 +29,7 @@ name_spectrometer = list_spectrometers()[0]
 # Define measurement variables
 folder = r'.'
 filename = 'goniomeasurement'
-angle_step = 40
+angle_step = 10
 angle_max = 80
 # Define variables for the spectrometer measurements
 integration_time = 100
@@ -40,8 +40,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
                       filename = 'gonio_mesurement', folder = '.',\
                       disable_gonio = False, plot = True):
-    
-   
+     
     gonio = None
     flame = None
     try:
@@ -76,10 +75,10 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
         start_time = time()
         
-        path = pjoin(folder, timestamp + '_'+ filename + '.dat')
+        path = pjoin(folder, timestamp + filename + '.dat')
         
         with open(path, 'a') as f:
-            f.write(timestamp + ' # Timestamp at the beginning of the measurement\n')
+            f.write(itimestamp + ' # Timestamp at the beginning of the measurement\n')
             f.write(f'{integration_time:.0f} # Integration time in (ms)\n')
             f.write(f'{n_spectra:d} # Number of spectra taken\n')
               
@@ -205,7 +204,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         header = itimestamp + '\n' + ftimestamp
         np.savetxt(path2, data, fmt = '% 8.2f', header= header)
         
-        print('INFO: Measurement finished data saved at\n\t' + path)
+        print('INFO: Measurement finished data saved at\n\t' + path2)
         
         if disable_gonio: gonio.disable_gonio()
         
@@ -230,6 +229,7 @@ def write_to_file(etime, angle, data, file):
     t = t.reshape((1, t.shape[0]))
     with open(file, 'a') as f:
        np.savetxt(f, t, fmt = '% 8.2f')
+    print(f'INFO: Data save at \n\t{file:s}')
 
     
 if __name__ == '__main__':

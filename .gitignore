@@ -1,5 +1,8 @@
 # *.dat files
 *.dat
+*.sri
+*.sli
+*.integrated
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
