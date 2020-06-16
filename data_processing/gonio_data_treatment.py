@@ -9,23 +9,25 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.io  import loadmat
+import os 
 
-fcal = r'.\calibration_files'
 
+fcal = pjoin(os.path.dirname(__file__), 'calibration_files')
 # Instrument response function, 160504 ML
-temp = loadmat(pjoin(fcal, 'GonioSpec_IRF_160504'))
-IRF = temp['GonioSpec_IRF_160504'][:,[1]].T
+path_IRF = pjoin(fcal, 'GonioSpec_IRF_160504')
 
 # Eye response function
-temp = loadmat(pjoin(fcal, 'CIE1988photopic.mat'))
-EyeResponse = temp['CIE1988Photopic']
+path_eye_response = pjoin(fcal, 'CIE1988photopic.mat')
 
 ABS_CALFACTOR = 5.4178e6 # Absolute numbers calibration factor, 170224 ML
 PIXEL_SIZE = 4e-6 # m^2, Size of a McScience substrate pixel. Equipment is designed to be used with these substrates only.
 
-def process_goniodata(file, correct_offset = True, current = None, plot = False):
-    """Read the file created by the setup Gonio spectrometer 3.0"""
-
+def process_goniodata(file, correct_offset = True, current = None, plot = False, path_IRF = path_IRF, path_eye_response = path_eye_response):
+    """Read the file created by the setup Gonio spectrometer 3.0""" 
+    # Load calibration files
+    IRF = loadmat(path_IRF)['GonioSpec_IRF_160504'][:,[1]].T
+    EyeResponse = loadmat(path_eye_response)['CIE1988Photopic']
+    
     # First 3-row contains the starting time, the  integration time and the averaged times
 #    iTime = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
     IntTime, Nscans = np.loadtxt(file, skiprows = 1, max_rows = 2, unpack = True)
@@ -37,15 +39,15 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False)
     Angles = data[2:,1]
     Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
     Spectra = MeasSpectra - DarkSpectra
-    # Sort the Data
-    isort =  Angles.argsort() # Get the indices that will sort the data based on angles
+    # Get the indices that will sort the data based on angles and sort the data
+    isort =  Angles.argsort() 
     vTimes = vTimes[isort]
     Angles = Angles[isort]
     Spectra = Spectra[isort, :]
     
     if correct_offset:
         # Automatically find the symmetry axis assuming parabola (rought)
-        angle_offset= find_symmetry(Wavelengths, Angles[5:-5], Spectra[5:-5,:], plot = plot)
+        angle_offset= find_symmetry(Wavelengths, Angles[2:-2], Spectra[2:-2,:], plot = plot)
         Angles -=  angle_offset
     else:
         print('INFO: No correction for the zero-angle offset is applied.')
@@ -53,15 +55,18 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False)
     # Processing the data using all the corrections needed
     # The spectral radiant intensity [W sr-1 nm-1]
     SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (IntTime/1000)
+    
     # The spectral luminous intensity [lm sr-1 nm-1]
-    SpecLumInt = SpecRadInt * photopic_eye_response(Wavelengths)    
+    # Calculate first the photopic eye response for the Wavelength vector
+    photopic_eye_response = (683.002 * np.interp(Wavelengths,EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(Wavelengths))
+    SpecLumInt = SpecRadInt * photopic_eye_response  
     
     # Luminous intensity, the integral of contributions from all wavelengths [lm sr-1 = cd]
 #     print(SpecLumInt.shape, Wavelengths.shape)
     LumInt = np.trapz(SpecLumInt,Wavelengths, axis =  1)
     L0 =  np.interp(0.0, Angles, LumInt)
     LumIntNorm = LumInt / L0   # Normalization for the 0 deg interpolated  
-    
+         
     # Luminance, Projected area correction that gives Luminance [cd m-2]
     Luminance = LumInt / np.cos(Angles * np.pi / 180.0) / PIXEL_SIZE
     # Normalization for the 0 deg measurements
@@ -89,11 +94,11 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False)
     fintegrated = file[:-4] + '.integrated'
     with open(fintegrated, 'w') as f:
         f.write(text)
-    tdata = np.vstack((Angles, LumInt, LumIntNorm, Luminance, LuminanceNorm)).T
+    tdata = np.vstack((vTimes, Angles, LumInt, LumIntNorm, Luminance, LuminanceNorm)).T
                       
     with open(fintegrated, 'a') as f:
-        header = 'Angles\t LuminousIntensity \t NormLuminousInensity \t Luminance\t NormLuminance\n'
-        header += ' ° \t cd \t a.u. \t  cd m-2\t a.u.'
+        header = 'eTime\t Angles \t LuminousIntensity \t NormLuminousInensity \t Luminance\t NormLuminance\n'
+        header += 's \t ° \t cd \t a.u. \t  cd m-2\t a.u.'
         np.savetxt(f, tdata, fmt = '% 10.6g\t', header = header)
     
     # Saving the spectral part of the data
@@ -165,10 +170,6 @@ def find_symmetry(wavelengths,angles,spectra, plot = False):
     return angle_offset
 
 
-
-def photopic_eye_response(wl):
-    return (683.002 * np.interp(wl,EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(wl))
-
 def lambertian_correction_factor(angle, Iph, plot = False):
     """Calculates the Lambertian correction factor, see Lindh's work
     angles: vector with the angles
@@ -190,8 +191,8 @@ def lambertian_correction_factor(angle, Iph, plot = False):
 
     if plot:
         fig, ax = plt.subplots()
-        ax.plot(angle, Iph,'x')
-        ax.plot(iangle, np.cos(iangle))
+        ax.plot(angle*180/np.pi, Iph,'x')
+        ax.plot(iangle*180/np.pi, np.cos(iangle))
         ax.set_xlabel('Angle (°)')
         ax.set_ylabel('Norm. luminous intensity (a.u.')
         ax.set_title('Comparison with Lambertian emitter')
@@ -236,7 +237,7 @@ def eqe_calculator(wl, angles, sr_intensity, current):
 #     print(f'EQE =  {EQE:.2f} %')
     return EQE
 
-if __name__ == '__main__':
-    IntTime, Nscans, Angles, Wavelengths,\
-            SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm,\
-            Fw_Luminance,Fw_Current_eff, EQE = process_goniodata(r'..\2020-06-15T17h09m40s_gonio_mesurement.dat', current=0.001, plot = True)
+# if __name__ == '__main__':
+    # IntTime, Nscans, Angles, Wavelengths,\
+    #         SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm,\
+    #         Fw_Luminance,Fw_Current_eff, EQE = process_goniodata(r'..\2020-06-15T17h09m40s_gonio_mesurement.dat', current=0.001, plot = True)

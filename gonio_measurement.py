@@ -21,20 +21,6 @@ duration = 1000  # Set Duration To 1000 ms == 1 second
 WAIT_TIME = 3
 N_WAVELENGTHS = 2028
 
-# This will only be used if the script is called as it is, not if it is used as a function
-# Assume the first port is the Arduino
-name_motor = list_ports()[1]
-# Assuming there is only one spectrometer, so taking the first element
-name_spectrometer = list_spectrometers()[0]
-# Define measurement variables
-folder = r'.'
-filename = 'goniomeasurement'
-angle_step = 10
-angle_max = 80
-# Define variables for the spectrometer measurements
-integration_time = 100
-n_spectra = 10
-plot = True
 
 def gonio_measurement(name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
@@ -233,4 +219,19 @@ def write_to_file(etime, angle, data, file):
 
     
 if __name__ == '__main__':
+    # This will only be used if the script is called as it is, not if it is used as a function
+    # Assume the first port is the Arduino
+    name_motor = list_ports()[1]
+    # Assuming there is only one spectrometer, so taking the first element
+    name_spectrometer = list_spectrometers()[0]
+    # Define measurement variables
+    folder = r'.'
+    filename = 'goniomeasurement'
+    angle_step = 10
+    angle_max = 80
+    # Define variables for the spectrometer measurements
+    integration_time = 100
+    n_spectra = 10
+    plot = True
+    
     gonio_measurement(name_motor, angle_max, angle_step, name_spectrometer, integration_time, n_spectra)
