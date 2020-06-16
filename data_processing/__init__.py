@@ -5,4 +5,4 @@ Created on Fri Nov 29 16:38:13 2019
 @author: JOANRR
 """
 
-from .gonio_data_treatment import process_goniodata
+from .data_processing import process_goniodata
