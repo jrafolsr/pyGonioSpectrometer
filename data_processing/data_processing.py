@@ -236,8 +236,3 @@ def eqe_calculator(wl, angles, sr_intensity, current):
 
 #     print(f'EQE =  {EQE:.2f} %')
     return EQE
-
-# if __name__ == '__main__':
-    # IntTime, Nscans, Angles, Wavelengths,\
-    #         SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm,\
-    #         Fw_Luminance,Fw_Current_eff, EQE = process_goniodata(r'..\2020-06-15T17h09m40s_gonio_mesurement.dat', current=0.001, plot = True)

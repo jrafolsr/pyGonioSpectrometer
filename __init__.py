@@ -6,5 +6,5 @@ Created on Fri Nov 29 16:38:13 2019
 """
 
 from . import instrumentation
+from . import data_processing
 from .gonio_measurement import gonio_measurement
-from .data_processing import gonio_data_treatment
