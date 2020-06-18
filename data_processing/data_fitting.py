@@ -16,18 +16,26 @@ fcal = pjoin(os.path.dirname(__file__), 'calibration_files')
 
 
 # This is manual, so far, needs to be a function
-EL_SIM2 = loadmat(pjoin(fcal, 'ErrorLandscape_2D-OLED_Hres_v1'))
-EL_SIM2['data'] = EL_SIM2.pop('ans')
-EL_SIM2['i_pos'] = np.arange(0.01, 1.0, 0.01)
-EL_SIM2['dAL_sim'] = np.arange(50, 205, 5)
-EL_SIM2['wl_q'] = np.arange(380,781, 1)
-EL_SIM2['angle_q'] = np.arange(0,90, 10)
+# EL_SIM2 = loadmat(pjoin(fcal, 'ErrorLandscape_2D-OLED_Hres_v1'))
+# EL_SIM2['qnormSpecRadInt_sim_2D'] = EL_SIM2.pop('ans')
+# EL_SIM2['ipos_sim'] = np.arange(0.01, 1.0, 0.01)
+# EL_SIM2['dAL_sim'] = np.arange(50, 205, 5)
+# EL_SIM2['wl_q'] = np.arange(380,781, 1)
+# EL_SIM2['angle_q'] = np.arange(0,90, 10)
 
-WL_Q = EL_SIM2['wl_q']
-ANGLE_Q = EL_SIM2['angle_q']
-dAL_SIM = EL_SIM2['dAL_sim']
-i_POS = EL_SIM2['i_pos']
-SIM_DATA = EL_SIM2['data']
+# WL_Q = EL_SIM2['wl_q']
+# ANGLE_Q = EL_SIM2['angle_q']
+# dAL_SIM = EL_SIM2['dAL_sim']
+# i_POS = EL_SIM2['ipos_sim']
+# SIM_DATA = EL_SIM2['qnormSpecRadInt_sim_2D']
+
+EL_SIM = loadmat(pjoin(fcal, 'Errorlandscape_sim'))
+WL_Q = EL_SIM['wl_q'][0]
+ANGLE_Q = EL_SIM['angle_q'][0]
+dAL_SIM = EL_SIM['dAL_sim'][0]
+i_POS = EL_SIM['ipos_sim'][0]
+SIM_DATA = EL_SIM['qnormSpecRadInt_sim_2D']
+
 
 
 def interpolate_expdata(sri, wl_i, angles_i, wavelengths, angles):   
@@ -172,23 +180,20 @@ def fit_thickness(file, plot = False):
         
     return fitted_thickness
 
-def min_error_profile(weights, emitter_positions,file, thickness, fitting = True):
-    """Calculates the error with respect the experimental data assuming a linear combination of emmitters at different positions and with different weights."""
-    wavelengths, angles, sri = load_sri_file(file)
-    ExpData = interpolate_expdata(sri, WL_Q, ANGLE_Q, wavelengths, angles)
-    
+def min_error_profile(weights, emitter_positions, exp_data, thickness, fitting = True):
+    """Calculates the error with respect the experimental data assuming a linear combination of emmitters at different positions and with different weights."""   
     
     if len(weights) != len(emitter_positions):
         raise Exception('Length of the positions and weights do no match')
     
     # Simulated data as a linear combination of emitters in multiple positions
-    lc_SimData = np.zeros(ExpData.shape) # linear combination SimData
+    lc_SimData = np.zeros(exp_data.shape) # linear combination SimData
     
     for w, pos in zip(weights, emitter_positions):
         lc_SimData += w * SIM_DATA[get_position_index(pos), get_thickness_index(thickness)]
     
-    error = ((np.abs(ExpData - lc_SimData)).mean(axis = -1)).mean(axis = -1)
-#     error = ((np.sqrt((ExpData - SimData)**2)).mean(axis = -1)).mean(axis = -1)
+    error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
+#     error = ((np.sqrt((exp_data - SimData)**2)).mean(axis = -1)).mean(axis = -1)
 #     print (error)
     
     if fitting:
