@@ -10,7 +10,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_daq as daq
 from dash.dependencies import Input, Output, State
-from time import sleep
+from time import sleep, time
 from os.path import join as pjoin, isdir
 import plotly.graph_objs as go
 from instrumentation import SpectraMeasurement, list_spectrometers, list_ports, ArduinoMotorController
@@ -55,7 +55,12 @@ def calculate_sri(wavelengths, intensity):
 # A secodn order symmetrical polynomial
 pol2_sym = lambda x,a,c, x0: a*(x-x0)**2 + c
 
-
+def write_to_file(etime, angle, data, file):
+    t  = np.hstack((etime, angle, data))
+    t = t.reshape((1, t.shape[0]))
+    with open(file, 'a') as f:
+       np.savetxt(f, t, fmt = '% 8.2f')
+    print(f'INFO: Data save at \n\t{file:s}')
 
 #%%    
 
@@ -358,14 +363,34 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     flame.open()
     flame.config(int_time, n_spectra = Nspectra)
     
-    # Take the dark spectra at zero, assuming shutter closed
-    Beep(3000, 250)
-    print('INFO: Taking dark spectra....')
-    WAVELENGTHS = data[:,0] = flame.get_wavelengths()
+     # Timestamps for the header and filename
+    itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+    timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss")
+    start_time = time()
     
+    path = pjoin(folder, timestamp + '_' + filename + '.dat')
+    
+    with open(path, 'a') as f:
+        f.write(itimestamp + ' # Timestamp at the beginning of the measurement\n')
+        f.write(f'{int_time:.0f} # Integration time in (ms)\n')
+        f.write(f'{Nspectra:d} # Number of spectra taken\n')
+              
+    
+    
+    Beep(3000, 250)
+    # Getting the wavelength vector
+    WAVELENGTHS = data[:,0] = flame.get_wavelengths()
+    # Saving the data in the new scheme
+    write_to_file(time() - start_time, np.nan, WAVELENGTHS, path)
+    
+    # Take the dark spectra at zero, assuming shutter closed
+    print('INFO: Taking dark spectra....')
     temp = flame.get_averaged_intensities()
     flame.set_background(temp)
     TRACES[0] = go.Scatter(x = WAVELENGTHS, y = temp, name = 'dark', mode = 'lines')
+    # Saving the data in the new scheme
+    write_to_file(time()-start_time, np.nan, temp, path)
+    # Saving the data in Mattias's scheme   
     data[:,1] = temp            
                   
     # Open the shutter
@@ -379,7 +404,9 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = '0°', mode = 'lines'))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background)) 
     CURRENT_ANGLE.append(0.0)
-    # Save to data structure
+    # Saving the data in the new scheme
+    write_to_file(time()-start_time, 0.0, temp, path)    
+    # Saving the data in Mattias's scheme   
     data[:,2] = temp   
     first_row[0,2] = 0.0
     
@@ -397,16 +424,18 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         first_row[0, k + 3] = current_angle
         print('INFO: Taking spectra....')
         temp = flame.get_averaged_intensities()
-        
-        TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines')
-                      )
-        SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
-        CURRENT_ANGLE.append(current_angle)
-        
         #Warning in case of saturation
         if np.any(temp > SATURATION_COUNTS): print('WARNING: Some values are saturating...')
-        
+        # Saving the data in the new scheme
+        write_to_file(time()-start_time, current_angle, temp, path)
+        # Saving the data in Mattias's scheme   
         data[:, k + 3] = temp
+        
+        # Plotting globals
+        TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines')
+              )
+        SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
+        CURRENT_ANGLE.append(current_angle)
         
         # Calculating next step
         next_step = angle_step + error
@@ -420,11 +449,17 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Take last angle spectra
     first_row[0,k + 4] = current_angle
     print('INFO: Taking spectra....')
-    temp = flame.get_averaged_intensities()    
+    temp = flame.get_averaged_intensities()
+    # Saving the data in the new scheme
+    write_to_file(time()-start_time, current_angle, temp, path)
+    # Saving the data in Mattias's scheme       
+    data[:,k + 4] = temp
+    
+    # Plotting globals
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines'))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
     CURRENT_ANGLE.append(current_angle)
-    data[:,k + 4] = temp
+
     
     # Going back to initial angle
     back_angle = -1.0 * abs(current_angle)
@@ -437,24 +472,29 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Taking last spectra at zero
     print('INFO: Taking last 0° spectra....')
     temp = flame.get_averaged_intensities()
+    # Saving the data in the new scheme
+    write_to_file(time()-start_time, current_angle, temp, path)
+    # Saving the data in Mattias's scheme        
+    data[:, k + 5] = temp
+    
+    # Plotting globals    
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'0°', mode = 'lines'))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
     CURRENT_ANGLE.append(current_angle)
-    
-    data[:, k + 5] = temp
-    
+
     # Close shutter
     gonio.move_shutter()
     
     # Saving the data code snippet
-    
-    timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss")
+    ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
     data = np.vstack([first_row, data])
-    path = pjoin(folder, timestamp + '_' + filename + '.dat')
-    np.savetxt(path, data, fmt = '% 8.2f', header= timestamp)
-    print('INFO: Measurement finished data saved at\n\t' + path)
+    path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
+    header = itimestamp + '\n' + ftimestamp
+    np.savetxt(path2, data, fmt = '% 8.2f', header= header)
+    print('INFO: Measurement finished data saved at (Mattias scheme)\n\t' + path2)
     
     return ' '
+
 @app.callback(Output('folder-exist', 'children'),
               [Input('folder-input', 'value')])
 def check_folder(value):
