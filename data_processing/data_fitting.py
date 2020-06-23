@@ -10,7 +10,7 @@ from scipy.io  import loadmat
 
 
 def load_simdata(file):
-    """Reads the *.mat file output structrue from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data"""
+    """Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data"""
     data = loadmat(file)
     output = dict(wl  = data['wl_q'][0],\
                   angles = data['angle_q'][0],\
@@ -24,7 +24,7 @@ def load_simdata(file):
 
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
-    """Interpolates the input sri with wl_i and angles_i to the output wl_o and angles_o"""
+    """Interpolates the input sri with wl_i and angles_i to the output wl_o and angles_o and normalizes to max wl of the zero angle"""
     # Manually add the 0 intensity at 90°
     angles_i = (np.hstack([-90, angles_i, 90]))
     N = len(wl_i) # Original wavelengths vector length
@@ -35,7 +35,7 @@ def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
     a_sri = np.zeros((N, len(angles_o)))
     
     for i in range(N):
-        # Take both hemispheres and to the average
+        # Take both hemispheres and do the average
         a_sri[i,:] = (np.interp(angles_o, angles_i, sri[i,:])+\
                             np.interp(-1.*angles_o, angles_i, sri[i,:])) / 2
                           
@@ -172,11 +172,12 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     for i, w in enumerate(weights):
         lc_SimData += w * simEL_positions[i]
     
-    error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
-#     error = ((np.sqrt((exp_data - SimData)**2)).mean(axis = -1)).mean(axis = -1)
+    # error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
+    error = ((np.sqrt((exp_data - lc_SimData)**2)).mean(axis = -1)).mean(axis = -1)
 #     print (error)
     
     if fitting:
         return error
     else:
         return error, lc_SimData
+    

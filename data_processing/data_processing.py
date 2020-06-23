@@ -19,10 +19,10 @@ path_IRF = pjoin(fcal, 'GonioSpec_IRF_160504')
 # Eye response function
 path_eye_response = pjoin(fcal, 'CIE1988photopic.mat')
 
-ABS_CALFACTOR = 5.4178e6 # Absolute numbers calibration factor, 170224 ML
+ABS_CALFACTOR = 5.94e6 # Calibration from 23/06/2020
 PIXEL_SIZE = 4e-6 # m^2, Size of a McScience substrate pixel. Equipment is designed to be used with these substrates only.
 
-def process_goniodata(file, correct_offset = True, current = None, plot = False, path_IRF = path_IRF, path_eye_response = path_eye_response):
+def process_goniodata(file, correct_offset = True, current = None, plot = False, path_IRF = path_IRF, path_eye_response = path_eye_response, check_time_stability = False):
     """Read the file created by the setup Gonio spectrometer 3.0""" 
     # Load calibration files
     IRF = loadmat(path_IRF)['GonioSpec_IRF_160504'][:,[1]].T
@@ -39,11 +39,26 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     Angles = data[2:,1]
     Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
     Spectra = MeasSpectra - DarkSpectra
+    #Check the time stability of the forward spectra, before the sorting
+    if check_time_stability:
+        fig, ax = plt.subplots()
+        nangles = len(Angles)
+        slicing = [0,int((nangles - 1)/2), -1]
+        zero_spectra = Spectra[slicing, :] * IRF * PIXEL_SIZE / ABS_CALFACTOR / (IntTime/1000)
+        zero_ri = np.trapz(zero_spectra,Wavelengths, axis =  1)
+        ax.plot(vTimes[slicing], zero_ri/zero_ri[0] * 100, 'o-')
+        ax.set_xlabel('Ellapsed time (s)')
+        ax.set_ylabel('Rel. change radiant intensity (%)')
+        ax.set_title('Time stability of forward angle')
+    
     # Get the indices that will sort the data based on angles and sort the data
     isort =  Angles.argsort() 
     vTimes = vTimes[isort]
     Angles = Angles[isort]
     Spectra = Spectra[isort, :]
+    
+
+    
     
     if correct_offset:
         # Automatically find the symmetry axis assuming parabola (rought)
@@ -58,7 +73,7 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     
     # The spectral luminous intensity [lm sr-1 nm-1]
     # Calculate first the photopic eye response for the Wavelength vector
-    photopic_eye_response = (683.002 * np.interp(Wavelengths,EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(Wavelengths))
+    photopic_eye_response = (683.002 * np.interp(Wavelengths, EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(Wavelengths))
     SpecLumInt = SpecRadInt * photopic_eye_response  
     
     # Luminous intensity, the integral of contributions from all wavelengths [lm sr-1 = cd]
@@ -72,7 +87,7 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     # Normalization for the 0 deg measurements
     LuminanceNorm = LumIntNorm / np.cos(Angles * np.pi / 180.0)
     
-    # Forward direction luminance (mean of all "zero" degree angles) [cd m-2]
+    # Forward direction luminance [cd m-2]
     Fw_Luminance = np.interp(0.0, Angles, Luminance)
     # Forward direction current efficacy [cd/A]
     Fw_Current_eff = (Fw_Luminance * PIXEL_SIZE ) / current if current != None else np.nan
@@ -167,6 +182,7 @@ def find_symmetry(wavelengths,angles,spectra, plot = False):
         ax.axvline(angle_offset,  c= 'black', ls = '--')
 
     print('INFO: Angle offset correction applied. Offset = {:.2f}°'.format(angle_offset))
+    
     return angle_offset
 
 
@@ -225,10 +241,10 @@ def eqe_calculator(wl, angles, sr_intensity, current):
     # Second, integrate over angles, theta goes form 0 to 90° only, so we integrate both -90 to 0 and 0 to 90 and take the abs value of the integrand and divide by two, as a quick work around
     total_energy = 0.5 * np.trapz(np.abs(integral_wl * np.sin(theta)), theta)
     
-    # Calculate the total number of photons
+    # Calculate the total number of photons per second
     Nphotons = total_energy / h / c * 2* np.pi
     
-    # Number of electrons
+    # Number of electrons per second
     Nelectrons = current / e
     
 #     print(f'N_photons = {Nphotons:.2e}, N_electrons = {Nelectrons:.2e}')
