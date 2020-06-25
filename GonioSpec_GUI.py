@@ -52,7 +52,8 @@ def calculate_sri(wavelengths, intensity):
     ff = (wavelengths >= wl_min) & ( wavelengths <= wl_max)
     sri = np.trapz(intensity[ff], wavelengths[ff])
     return sri/1E6
-# A secodn order symmetrical polynomial
+
+# A second order symmetrical polynomial
 pol2_sym = lambda x,a,c, x0: a*(x-x0)**2 + c
 
 def write_to_file(etime, angle, data, file):
@@ -60,7 +61,7 @@ def write_to_file(etime, angle, data, file):
     t = t.reshape((1, t.shape[0]))
     with open(file, 'a') as f:
        np.savetxt(f, t, fmt = '% 8.2f')
-    print(f'INFO: Data save at \n\t{file:s}')
+    print(f'INFO: Data saved at \n\t{file:s}')
 
 #%%    
 
@@ -216,7 +217,7 @@ app.layout = html.Div(children =  [
               dcc.Input(id="folder-input",
                         type="text",
                         placeholder="Folder",
-                        value = r'C:\Users\OPEGLAB\Documents\data',
+                        value = r'C:\Users\OPEGLAB\Documents\data\goniospectrometer',
                         size = '40'),
               html.Span(id = 'folder-exist', children = '')
               ]),
