@@ -42,11 +42,11 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         n_columns = 2*n_angles -1 + 4
         
         # Matrices where to save the data, based on Mattias' scheme (can be improved...)
-        first_row = np.zeros((1,n_columns))  
-        first_row[0,0] = integration_time
-        first_row[0,1] = n_spectra
+#        first_row = np.zeros((1,n_columns))  
+#        first_row[0,0] = integration_time
+#        first_row[0,1] = n_spectra
         # First columns will be the wavellengths, second the dark spectra, the rest the angles
-        data = np.zeros((N_WAVELENGTHS, n_columns))
+#        data = np.zeros((N_WAVELENGTHS, n_columns))
         
         # Prepraring the plot
         if plot:
@@ -72,7 +72,8 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         wavelengths = flame.get_wavelengths()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, np.nan, wavelengths, path)
-        data[:,0] = wavelengths
+        # Saving the data in Mattias's scheme
+#        data[:,0] = wavelengths
         
         winsound.Beep(frequency, duration*2) # It will remind that the measureement starts
         
@@ -83,7 +84,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
       
         if plot: plot_measurement(fig, ax, wavelengths, temp, 'dark')
         # Saving the data in Mattias's scheme
-        data[:,1] = temp
+#        data[:,1] = temp
         sleep(0.25)
         
         # Open the shutter, assuming it is closed
@@ -91,7 +92,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
 
         
         [winsound.Beep(frequency,200) for i in range (5)] # Reminder of measurement starting
-        sleep(WAIT_TIME*2)
+        sleep(WAIT_TIME)
         
         # Take spectra at zero
         print('>>>>>>>>>>>>>>> STEP 0 <<<<<<<<<<<<<<<')
@@ -101,9 +102,10 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         write_to_file(time()-start_time, 0.0, temp, path)
         
         if plot: plot_measurement(fig, ax, wavelengths, temp, '0.0°')
+        
         # Saving the data in Mattias's scheme
-        data[:,2] = temp
-        first_row[0,2] = 0.0
+#        data[:,2] = temp
+#        first_row[0,2] = 0.0
         
         
         # Move to the last position
@@ -117,19 +119,21 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         
         sleep(WAIT_TIME * 2) # Long enough time to make sure that it waits until the ed of the movement
         
-        
+        k = 0
         for k in range(n_steps):        
         
             print(f'INFO: Taking spectra at {current_angle:.1f}°...')
             
-            # Save the angle
-            first_row[0, k + 3] = current_angle
+
             # Get the whole spectra (wl and I)
             temp = flame.get_averaged_intensities()
             # Saving the data in the new scheme
             write_to_file(time()-start_time, current_angle, temp, path)
-            # Saving the data in Mattias's scheme
-            data[:, k + 3] = temp
+            
+#            # Save the angle in Mattias' scheme
+#            first_row[0, k + 3] = current_angle
+#            # Saving the data in Mattias's scheme
+#            data[:, k + 3] = temp
         
             # Check for any values higher than saturation
             if np.any(temp > 65535): print('WARNING: Some values are saturating. Consider lowering the integration time.')
@@ -153,12 +157,13 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         
         # Take last angle spectra
         print(f'INFO: Taking spectra at {current_angle:.1f}°...')
-        first_row[0,k + 4] = current_angle
+        
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, current_angle, temp, path)
-        # Saving the data in Mattias's scheme        
-        data[:,k + 4] = temp
+#        # Saving the data in Mattias's scheme
+#        first_row[0,k + 4] = current_angle        
+#        data[:,k + 4] = temp
         
         if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
         sleep(WAIT_TIME)
@@ -171,26 +176,28 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print(f'INFO: Moved {out_angle:.1f}°. Total angle moved: {total:.1f}')
         
         # Wait longer time, as the angle is larger and take the spectra
-        sleep(WAIT_TIME*2)
+        sleep(WAIT_TIME)
+        print('INFO: Taking last 0° spectra....')
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, current_angle, temp, path)
-        # Saving the data in Mattias's scheme        
-        data[:, k + 5] = temp
+        
+        # Saving the data in Mattias's scheme 
+#        first_row[0,k + 5] = current_angle 
+#        data[:, k + 5] = temp
         
         if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
         
         # Closing shutter
         gonio.move_shutter()
         
-        # Saving the data code snippet in with Mattias' scheme
-        ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
-        path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
-        data = np.vstack([first_row, data])       
-        header = itimestamp + '\n' + ftimestamp
-        np.savetxt(path2, data, fmt = '% 8.2f', header= header)
-        
-        print('INFO: Measurement finished data saved at\n\t' + path2)
+#        # Saving the data code snippet in with Mattias' scheme
+#        ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+#        path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
+#        data = np.vstack([first_row, data])       
+#        header = itimestamp + '\n' + ftimestamp
+#        np.savetxt(path2, data, fmt = '% 8.2f', header= header) 
+#        print('INFO: Measurement finished data saved at\n\t' + path2)
         
         if disable_gonio: gonio.disable_gonio()
         

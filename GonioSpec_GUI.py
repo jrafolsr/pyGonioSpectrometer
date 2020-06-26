@@ -188,7 +188,7 @@ app.layout = html.Div(children =  [
               precision = 4,
               min = 1,
               max = 10000,
-              value = 1.000E1,
+              value = 1.000E2,
               style = {'display': 'inline-block'}
               )
             ]),
@@ -196,7 +196,7 @@ app.layout = html.Div(children =  [
               dcc.Input(
                   id = "input-n-spectra",
                   type = 'number',
-                  value = 1,
+                  value = 10,
                   size = '5')
               ]),
           html.Div(['Step angle (°): ',
@@ -354,11 +354,11 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     n_steps = 2 * (n_angles -1)
     
     # Data saving according to Mattias strategy (to be improved)
-    first_row = np.zeros((1, n_columns)) # INT_TIME, N_AV + ANGLES
-    first_row[0,0] = int_time
-    first_row[0,1] = Nspectra
+#    first_row = np.zeros((1, n_columns)) # INT_TIME, N_AV + ANGLES
+#    first_row[0,0] = int_time
+#    first_row[0,1] = Nspectra
     # First columns will be the wavelengths, second the dark spectra, the rest the angles
-    data = np.zeros((LEN_WAVELENGTHS, n_columns)) # 2028 is the length of the output vector
+#    data = np.zeros((LEN_WAVELENGTHS, n_columns)) # 2028 is the length of the output vector
     
     # Open the port again, just in case, and configure with the current integration time
     flame.open()
@@ -380,7 +380,8 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     
     Beep(3000, 250)
     # Getting the wavelength vector
-    WAVELENGTHS = data[:,0] = flame.get_wavelengths()
+    WAVELENGTHS = flame.get_wavelengths()
+#    data[:,0] = WAVELENGTHS
     # Saving the data in the new scheme
     write_to_file(time() - start_time, np.nan, WAVELENGTHS, path)
     
@@ -392,11 +393,10 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Saving the data in the new scheme
     write_to_file(time()-start_time, np.nan, temp, path)
     # Saving the data in Mattias's scheme   
-    data[:,1] = temp            
+#    data[:,1] = temp            
                   
     # Open the shutter
     gonio.move_shutter()
-    sleep(WAIT_TIME)
     Beep(3000, WAIT_TIME)
     
     # Take 1st spectra at zero
@@ -408,8 +408,8 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Saving the data in the new scheme
     write_to_file(time()-start_time, 0.0, temp, path)    
     # Saving the data in Mattias's scheme   
-    data[:,2] = temp   
-    first_row[0,2] = 0.0
+#    data[:,2] = temp   
+#    first_row[0,2] = 0.0
     
     # Starting measurement. First, move to the last position
     out_angle = gonio.move_angle(-1 * angle_max)
@@ -419,10 +419,11 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     error = (angle_max - out_angle)
     total = 0
     current_angle = -out_angle
-    
+
+    k = 0 
     for k in range(n_steps):
         # Save the angle
-        first_row[0, k + 3] = current_angle
+#        first_row[0, k + 3] = current_angle
         print('INFO: Taking spectra....')
         temp = flame.get_averaged_intensities()
         #Warning in case of saturation
@@ -430,7 +431,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         # Saving the data in the new scheme
         write_to_file(time()-start_time, current_angle, temp, path)
         # Saving the data in Mattias's scheme   
-        data[:, k + 3] = temp
+#        data[:, k + 3] = temp
         
         # Plotting globals
         TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines')
@@ -448,13 +449,14 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         sleep(WAIT_TIME)
         
     # Take last angle spectra
-    first_row[0,k + 4] = current_angle
+
     print('INFO: Taking spectra....')
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
     # Saving the data in Mattias's scheme       
-    data[:,k + 4] = temp
+#    first_row[0,k + 4] = current_angle
+#    data[:,k + 4] = temp
     
     # Plotting globals
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines'))
@@ -466,9 +468,9 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     back_angle = -1.0 * abs(current_angle)
     out_angle = gonio.move_angle(back_angle)
     current_angle -= out_angle
-    first_row[0,k + 5] = current_angle
+
     
-    sleep(WAIT_TIME*2)
+    sleep(WAIT_TIME)
     
     # Taking last spectra at zero
     print('INFO: Taking last 0° spectra....')
@@ -476,7 +478,8 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
     # Saving the data in Mattias's scheme        
-    data[:, k + 5] = temp
+#    first_row[0,k + 5] = current_angle
+#    data[:, k + 5] = temp
     
     # Plotting globals    
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'0°', mode = 'lines'))
@@ -486,13 +489,13 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Close shutter
     gonio.move_shutter()
     
-    # Saving the data code snippet
-    ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
-    data = np.vstack([first_row, data])
-    path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
-    header = itimestamp + '\n' + ftimestamp
-    np.savetxt(path2, data, fmt = '% 8.2f', header= header)
-    print('INFO: Measurement finished data saved at (Mattias scheme)\n\t' + path2)
+    # Saving the data with Mattias' scheme
+#    ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+#    data = np.vstack([first_row, data])
+#    path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
+#    header = itimestamp + '\n' + ftimestamp
+#    np.savetxt(path2, data, fmt = '% 8.2f', header= header)
+#    print('INFO: Measurement finished data saved at (Mattias scheme)\n\t' + path2)
     
     return ' '
 

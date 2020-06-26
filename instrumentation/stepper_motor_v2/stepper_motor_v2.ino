@@ -47,22 +47,28 @@ int sopen =  1; // Variable that controls if the shutter is open or not
 
 
 void setup() {
+  pinMode(EN, OUTPUT);
+  digitalWrite(EN, LOW);
+
+  pinMode(sEN, OUTPUT);
+  digitalWrite(sEN, HIGH);
+  
   pinMode(gstep, OUTPUT);
   pinMode(gdir, OUTPUT);
   pinMode(MS1, OUTPUT);
   pinMode(MS2, OUTPUT);
   pinMode(MS3, OUTPUT);
-  pinMode(EN, OUTPUT);
+  
   pinMode(sstep, OUTPUT);
   pinMode(sdir, OUTPUT);
-  pinMode(sEN, OUTPUT);
+
 
   
   resetBEDPins(); //Set step, direction, microstep and enable pins to default states
   Serial.begin(9600); //Open Serial connection for debugging
   Serial.println("Motor ready");
-  digitalWrite(EN, LOW);
-  digitalWrite(sEN, HIGH);
+  
+  
 }
 
 //Main loop
@@ -125,7 +131,7 @@ void resetBEDPins()
   digitalWrite(MS1, LOW);
   digitalWrite(MS2, LOW);
   digitalWrite(MS3, LOW);
-  digitalWrite(EN, HIGH);
+  digitalWrite(EN, LOW);
   delay(1);
 }
 //Movement of the goniometer

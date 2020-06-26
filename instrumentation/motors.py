@@ -134,6 +134,7 @@ class ArduinoMotorController():
                 sleep(0.01)
             except KeyboardInterrupt:
                 break
+        sleep(1)
             
     def disable_shutter(self):
         pass

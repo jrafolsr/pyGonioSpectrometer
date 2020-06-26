@@ -5,7 +5,7 @@ Created on Fri Jun 12 11:12:33 2020
 @author: OPEGLAB
 """
 from pyGonioSpectrometer import gonio_measurement
-from pyGonioSpectrometer.instrumentation import list_ports, list_spectrometers
+from pyGonioSpectrometer.instrumentation import list_spectrometers
 
 from time import sleep, time
 
