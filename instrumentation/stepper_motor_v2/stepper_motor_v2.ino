@@ -48,7 +48,7 @@ int sopen =  1; // Variable that controls if the shutter is open or not
 
 void setup() {
   pinMode(EN, OUTPUT);
-  digitalWrite(EN, LOW);
+  digitalWrite(EN, HIGH);
 
   pinMode(sEN, OUTPUT);
   digitalWrite(sEN, HIGH);
