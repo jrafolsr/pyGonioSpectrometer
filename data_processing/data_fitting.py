@@ -9,14 +9,51 @@ from matplotlib import pyplot as plt
 from scipy.io  import loadmat
 
 
-def load_simdata(file):
-    """Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data"""
-    data = loadmat(file)
-    output = dict(wl  = data['wl_q'][0],\
-                  angles = data['angle_q'][0],\
-                  dAL = data['dAL_sim'][0],\
-                  ipos = data['ipos_sim'][0],\
-                  data =  data['qnormSpecRadInt_sim_2D'])
+def load_simdata(file, wl_limit = None, angle_max = None):
+    """Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
+    
+    Parameters:
+    ----------
+    file: str with the path to the *.mat file containing the error landscape
+    wl_limit (opt): tuple with the lower and ipper values of the wavelengths to take
+    angle_max (opt): angle maximum to consider
+    
+    Returns:
+    output:  a dictionary structure with the fields wl, angle, ipos, dAL and data
+    
+    """
+    tdata = loadmat(file)
+    
+    wl  = tdata['wl_q'][0]
+    angles = tdata['angle_q'][0]
+    dAL = tdata['dAL_sim'][0]
+    ipos = tdata['ipos_sim'][0]
+    data =  tdata['qnormSpecRadInt_sim_2D']
+    
+    if wl_limit is not None:
+        wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
+    else:
+        wl_filter = [True] * len(wl)
+    if angle_max is not None:
+        angle_filter = angles <= angle_max
+    else:
+        angle_filter = [True] * len(angles)
+        
+    wl = wl[wl_filter]
+    angles = angles[angle_filter]
+    
+    for i in range(len(ipos)):
+        for j in range(len(dAL)):
+            data[i,j] = data[i,j][wl_filter, :]
+            data[i,j] = data[i,j][:, angle_filter]
+    
+    
+    output = dict(wl  = wl,\
+                  angles = angles,\
+                  dAL = dAL,\
+                  ipos = ipos,\
+                  data =  data)
+    
 
     return output
 
@@ -69,6 +106,23 @@ def load_sri_file(file):
     return wavelengths, angles, sri
 
 def error_landscape(file, thickness, simEL, plot = False):
+    """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
+        
+        Parameters
+        ----------
+        file: file path with the experiments data
+        thickness: thickness of the experimental data
+        simEL: dict structure with all the simulation data to compare the exp data
+        plot: if True, it plots a colormap of theangular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter.
+        
+        Returns
+        -------
+        Error_Landscape: the error for each position of the emitter, corresponding to the vector providel in simEL['ipos']
+        pos_min: the position with the minimum error iNormExpSRI, NormSimSRI[ipos_min]
+        iNormExpSRI: the normalized and interpolated exp angular SRI
+        NormSimSRI[ipos_min]: the normalized sim SRI for the minimum error position
+        
+        """
     
     wavelengths, angles, sri = load_sri_file(file)
     
@@ -148,7 +202,7 @@ def fit_thickness(file, simEL, plot = False):
     error_pos = np.zeros(dAL_sim.shape)
     
     for i,d in enumerate(dAL_sim):
-        Error_Landscape,_,_,_= error_landscape(file, d, simEL)
+        Error_Landscape,_,_,_= error_landscape(file, d, simEL, plot = plot)
         error_pos[i] = Error_Landscape.min()
     
     # The index with the minimum error from all the thicknesses tried
@@ -172,8 +226,10 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     for i, w in enumerate(weights):
         lc_SimData += w * simEL_positions[i]
     
-    # error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
-    error = ((np.sqrt((exp_data - lc_SimData)**2)).mean(axis = -1)).mean(axis = -1)
+    # Abs error
+    error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
+    # Quadratic error
+    # error = ((np.sqrt((exp_data - lc_SimData)**2)).mean(axis = -1)).mean(axis = -1)
 #     print (error)
     
     if fitting:

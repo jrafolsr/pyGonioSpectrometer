@@ -17,7 +17,7 @@ fcal = pjoin(os.path.dirname(__file__), 'calibration_files')
 path_IRF = pjoin(fcal, 'GonioSpec_IRF_160504')
 
 # Eye response function
-path_eye_response = pjoin(fcal, 'CIE1988photopic.mat')
+path_eye_response = pjoin(fcal, 'CIE1988photopic')
 
 ABS_CALFACTOR = 5.94e6 # Calibration from 23/06/2020
 PIXEL_SIZE = 4e-6 # m^2, Size of a McScience substrate pixel. Equipment is designed to be used with these substrates only.
@@ -29,13 +29,13 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     EyeResponse = loadmat(path_eye_response)['CIE1988Photopic']
     
     # First 3-row contains the starting time, the  integration time and the averaged times
-#    iTime = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
+    iTime = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
     IntTime, Nscans = np.loadtxt(file, skiprows = 1, max_rows = 2, unpack = True)
 
     # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
     data = np.loadtxt(file, skiprows = 3)
     vTimes = data[2:,0]
-    vTimes -= vTimes[0] # Zero the time vector to the first spectra adquisition
+    # vTimes -= vTimes[0] # Zero the time vector to the first spectra adquisition
     Angles = data[2:,1]
     Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
     Spectra = MeasSpectra - DarkSpectra
@@ -96,13 +96,13 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     EQE = eqe_calculator(Wavelengths,Angles, SpecRadInt, current) if current != None else np.nan
     # Lambertian factor calculation
     Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot)
-    
     text = f'# Angle_offset = {angle_offset:.2f}°\n' if correct_offset else '# Angle_offset = nan\n'
     text += f'# I = {current*1000:.2f} mA\n' if current != None else '# Current = nan mA\n'
     text += f'# L0 =  {Fw_Luminance:.2f} cd m-2\n'
     text += f'# EQE =  {EQE:.2f} %\n'
     text += f'# CE =  {Fw_Current_eff:.2f} cd A-1\n'
     text += f'# Lambertian Corr. Factor =  {Lamb_Corr_Factor:.4f}\n'
+    text += str(iTime) + '# Zero timestamp\n'
     print(text)
     
     # Saving the integrated part of the data
@@ -156,9 +156,53 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
         ax.set_xlim(-90, 90)
         ax1.set_xlim(-90,90)
     
-    return IntTime, Nscans, Angles, Wavelengths,\
+    return iTime, IntTime, Nscans, Angles, Wavelengths,\
             SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm,\
             Fw_Luminance,Fw_Current_eff, EQE
+
+
+def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_eye_response):
+    """Read the L0-files L0 created by the setup Gonio spectrometer 3.0""" 
+    # Load calibration files
+    IRF = loadmat(path_IRF)['GonioSpec_IRF_160504'][:,[1]].T
+    EyeResponse = loadmat(path_eye_response)['CIE1988Photopic']
+    
+    vtimes = np.array([], dtype = np.datetime64)
+    vluminances = np.array([])
+    if t0 is None:
+        print('INFO: No t0 is provided, t0 taken from the first input file.')
+        t0 = np.loadtxt(files[0], max_rows = 1, dtype = np.datetime64)
+        
+    for file in files:
+        t1 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
+        # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
+        data = np.loadtxt(file, skiprows = 3)
+        aTimes = data[2:,0]
+        integration_times = data[2:,1]
+        integration_times = integration_times.reshape((len(integration_times), 1))
+        Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
+        Spectra = MeasSpectra - DarkSpectra
+        
+        # The spectral radiant intensity [W sr-1 nm-1]
+        SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (integration_times/1000)
+    
+        # The spectral luminous intensity [lm sr-1 nm-1]
+        # Calculate first the photopic eye response for the Wavelength vector
+        photopic_eye_response = (683.002 * np.interp(Wavelengths, EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(Wavelengths))
+        SpecLumInt = SpecRadInt * photopic_eye_response
+        
+        Luminance = np.trapz(SpecLumInt, Wavelengths, axis =  1) / PIXEL_SIZE
+        rtimes = [t1 + int(s*1e6) for s in aTimes]
+        vtimes = np.concatenate([vtimes,rtimes])
+        vluminances = np.concatenate([vluminances, Luminance])
+    
+    vtimes = np.float64(vtimes - t0)/1e6
+    
+    data = np.vstack([vtimes, vluminances]).T
+    header = str(t0) + '\nRel.Time(s) \t  Luminance(cd/m2)'
+    folder = os.path.dirname(files[0])
+    np.savetxt(pjoin(folder, 'time-luminance.dat'), data, header = header, fmt = '%10.6f')
+    return vtimes, vluminances
 
 def find_symmetry(wavelengths,angles,spectra, plot = False):
     # Using the radiant intensity instead of the spectral radiant intensity (uncalibrated)
