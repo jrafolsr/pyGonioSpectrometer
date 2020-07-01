@@ -14,7 +14,7 @@ from time import sleep
 
 
 # Some definitions
-FACTOR = 1000000 # We'll be wroking with udeg, si the interger operations work fine
+FACTOR = 1000000 # We'll be working with udeg, si the interger operations work fine
 MOTOR_ASTEP = int(1.8*FACTOR) #udeg
 TIMEOUT = 5000 # Max. number of seconds to wait until perform  the next movement of the motor, just as a safety feature
 RESOLUTIONS = [1, 2, 4, 8, 16]
@@ -51,7 +51,8 @@ class ArduinoMotorController():
         
     def close(self):
         """Close the resource"""
-        self.motor.close()   
+        self.motor.clear() 
+        self.motor.close()
         
     def angle2steps(self, angle, slow = True, resolution = 16):
         """Calculates the angle to move using from the bigger to the smaller steps. Not suitable for small and accurate movements perhaps"""
@@ -114,12 +115,13 @@ class ArduinoMotorController():
                     sleep(0.01)
                 except KeyboardInterrupt:
                     break
-    #         print(motor.read())
+            print('INFO: '  + self.motor.read())
         
         return out_angle
     
     def disable_gonio(self):
         self.move_angle(0)
+        self.motor.read()
         return None
     
     def move_shutter(self, angle = 90, slow = True, resolution = 1):
@@ -134,7 +136,8 @@ class ArduinoMotorController():
                 sleep(0.01)
             except KeyboardInterrupt:
                 break
-        sleep(1)
+        print('INFO: '  + self.motor.read())
+        sleep(0.5)
             
     def disable_shutter(self):
         pass

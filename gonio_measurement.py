@@ -39,9 +39,10 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     
         n_angles = int(angle_max*100) // int(angle_step*100) + 1
         n_steps = (n_angles - 1) *2
-        n_columns = 2*n_angles -1 + 4
+
         
         # Matrices where to save the data, based on Mattias' scheme (can be improved...)
+#        n_columns = 2*n_angles -1 + 4        
 #        first_row = np.zeros((1,n_columns))  
 #        first_row[0,0] = integration_time
 #        first_row[0,1] = n_spectra
@@ -88,6 +89,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         sleep(0.25)
         
         # Open the shutter, assuming it is closed
+        print('INFO: Opening shutter')
         gonio.move_shutter()
 
         
@@ -189,8 +191,9 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
         
         # Closing shutter
+        print('INFO: Closing shutter')
         gonio.move_shutter()
-        
+        sleep(0.5)
 #        # Saving the data code snippet in with Mattias' scheme
 #        ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
 #        path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
@@ -217,12 +220,13 @@ def plot_measurement(fig, ax, x, y, label = None):
         ax.legend()
     plt.pause(0.25)
     
-def write_to_file(etime, angle, data, file):
+def write_to_file(etime, angle, data, file, debug = False):
     t  = np.hstack((etime, angle, data))
     t = t.reshape((1, t.shape[0]))
     with open(file, 'a') as f:
        np.savetxt(f, t, fmt = '% 8.2f')
-    print(f'INFO: Data save at \n\t{file:s}')
+    if debug:
+        print(f'INFO: Data save at \n\t{file:s}')
 
     
 if __name__ == '__main__':

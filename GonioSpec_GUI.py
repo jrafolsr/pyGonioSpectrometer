@@ -19,15 +19,16 @@ from winsound import Beep
 from datetime import datetime
 from scipy.optimize import curve_fit
 
+from GonioSpec_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA, ARDUINO_PORT,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME, PORT
 
 
-N_CLICK_PREVIOUS = 0
 flame = None
 gonio = None
 WAVELENGTHS = None
 INTENSITIES = None
-WAIT_TIME = 3
-LEN_WAVELENGTHS = 2028
+
+#LEN_WAVELENGTHS = 2028 # Just necessary if Mattias' saving scheme
+
 TRACE_SPECTRA = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines')]
 TRACE_SRI = [go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
              xaxis = 'x2', yaxis = 'y2')]
@@ -39,7 +40,7 @@ TRACES = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'),
                  go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
              xaxis = 'x2', yaxis = 'y2')]
 
-SATURATION_COUNTS = 65535
+
 LSPECTROMETERS = list_spectrometers()
 LPORTS  = list_ports()
 CURRENT_ANGLE = []
@@ -56,12 +57,13 @@ def calculate_sri(wavelengths, intensity):
 # A second order symmetrical polynomial
 pol2_sym = lambda x,a,c, x0: a*(x-x0)**2 + c
 
-def write_to_file(etime, angle, data, file):
+def write_to_file(etime, angle, data, file, debug = False):
     t  = np.hstack((etime, angle, data))
     t = t.reshape((1, t.shape[0]))
     with open(file, 'a') as f:
-       np.savetxt(f, t, fmt = '% 8.2f')
-    print(f'INFO: Data saved at \n\t{file:s}')
+        np.savetxt(f, t, fmt = '% 8.2f')
+    if debug:
+        print(f'INFO: Data saved at \n\t{file:s}')
 
 #%%    
 
@@ -111,7 +113,7 @@ app.layout = html.Div(children =  [
         html.Span('Arduino COM port:'),
         dcc.Dropdown(id  = 'dropdown-arduino',
             options = [{'label' : name, 'value': name} for name in LPORTS],
-            value = 'No detected ports' if LPORTS == [] else LPORTS[0],
+            value = 'No detected ports' if LPORTS == [] else ARDUINO_PORT,
             placeholder = 'No detected ports',
             style = {'width' : '200'},
             searchable = False
@@ -183,12 +185,11 @@ app.layout = html.Div(children =  [
             html.Div('Integration time (ms): ', id = 'label-it', style = {'display': 'inline-block'}),
             daq.PrecisionInput(
               id='integration-time',
-
               labelPosition = 'top',
               precision = 4,
               min = 1,
               max = 10000,
-              value = 1.000E2,
+              value = INITIAL_INTEGRATION_TIME,
               style = {'display': 'inline-block'}
               )
             ]),
@@ -196,37 +197,37 @@ app.layout = html.Div(children =  [
               dcc.Input(
                   id = "input-n-spectra",
                   type = 'number',
-                  value = 10,
+                  value = INITIAL_NSPECTRA,
                   size = '5')
               ]),
           html.Div(['Step angle (°): ',
               dcc.Input(
                   id = "input-step-angle",
                   type = 'number',
-                  value = 10,
+                  value = INITIAL_STEP,
                   size = '5')
               ]),
           html.Div(['Max. angle (°): ',
               dcc.Input(
                   id = "input-max-angle",
                   type = 'number',
-                  value = 80,
+                  value = INITIAL_MAX_ANGLE,
                   size = '5')
               ]),
           html.Div(['Folder: ',          
               dcc.Input(id="folder-input",
                         type="text",
                         placeholder="Folder",
-                        value = r'C:\Users\OPEGLAB\Documents\data\goniospectrometer',
+                        value = INITIAL_PATH,
                         size = '40'),
               html.Span(id = 'folder-exist', children = '')
               ]),
           html.Div(['Filename: ',
               dcc.Input(id="filename-input",
-                        type="text",
-                        placeholder="Filename",
+                        type= "text",
+                        placeholder= "Filename",
                         size = '40',
-                        value = 'angular_sri')
+                        value = INITIAL_FILENAME)
               ]),
             ])
        ])
@@ -344,7 +345,8 @@ def update_graph(n_adq, n_upd, n_clr, figure):
                State('integration-time','value')],
               prevent_initial_call = True)
 def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_time):
-    global WAVELENGTHS, INTENSITIES, WAIT_TIME, LEN_WAVELENGTHS, TRACES, SRI, CURRENT_ANGLE,RESET_TRACES
+    global WAVELENGTHS, INTENSITIES, WAIT_TIME, TRACES, SRI, CURRENT_ANGLE,RESET_TRACES
+#    global LEN_WAVELENGTHS # Just if using Mattias' scheme
     TRACES = RESET_TRACES
     
     SRI = []
@@ -592,10 +594,8 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
 
 if __name__ == '__main__':
     try:
-        app.run_server(debug=True, port = 8051)
+        app.run_server(debug = True, port = PORT)
     except KeyboardInterrupt as e:
-        print(e)
-    except Exception as e:
         print(e)
         
     if flame is not None:
