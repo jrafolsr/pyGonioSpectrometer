@@ -124,7 +124,7 @@ class ArduinoMotorController():
         self.motor.read()
         return None
     
-    def move_shutter(self, angle = 90, slow = True, resolution = 1):
+    def move_shutter(self, angle = 270, slow = True, resolution = 1):
         steps, _, _ = self.angle2steps(angle,slow, resolution)
         step = steps[0]
         self.motor.write(f'0,{step:d}')
