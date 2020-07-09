@@ -10,7 +10,8 @@ from scipy.io  import loadmat
 
 
 def load_simdata(file, wl_limit = None, angle_max = None):
-    """Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
+    """
+    Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
     
     Parameters:
     ----------
@@ -57,7 +58,53 @@ def load_simdata(file, wl_limit = None, angle_max = None):
 
     return output
 
+def load_simdata_new(file, wl_limit = None, angle_max = None):
+    """Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
+    
+    Parameters:
+    ----------
+    file: str with the path to the *.mat file containing the error landscape
+    wl_limit (opt): tuple with the lower and ipper values of the wavelengths to take
+    angle_max (opt): angle maximum to consider
+    
+    Returns:
+    output:  a dictionary structure with the fields wl, angle, ipos, dAL and data
+    
+    """
+    tdata = loadmat(file)
+    
+    wl  = tdata['wl'][0]
+    angles = tdata['angles'][0]
+    dAL = tdata['dAl'][0]
+    ipos = tdata['ipos'][0]
+    data =  tdata['data']
+    
+    if wl_limit is not None:
+        wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
+    else:
+        wl_filter = [True] * len(wl)
+    if angle_max is not None:
+        angle_filter = angles <= angle_max
+    else:
+        angle_filter = [True] * len(angles)
+        
+    wl = wl[wl_filter]
+    angles = angles[angle_filter]
+    
+    for i in range(len(ipos)):
+        for j in range(len(dAL)):
+            data[i,j] = data[i,j][wl_filter, :]
+            data[i,j] = data[i,j][:, angle_filter]
+    
+    
+    output = dict(wl  = wl,\
+                  angles = angles,\
+                  dAL = dAL,\
+                  ipos = ipos,\
+                  data =  data)
+    
 
+    return output
 
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
@@ -105,7 +152,7 @@ def load_sri_file(file):
     sri = temp[2:, 1:]
     return wavelengths, angles, sri
 
-def error_landscape(file, thickness, simEL, plot = False):
+def error_landscape(file, thickness, simEL, weights = None, plot = False):
     """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
         
         Parameters
@@ -113,6 +160,7 @@ def error_landscape(file, thickness, simEL, plot = False):
         file: file path with the experiments data
         thickness: thickness of the experimental data
         simEL: dict structure with all the simulation data to compare the exp data
+        weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']
         plot: if True, it plots a colormap of theangular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter.
         
         Returns
@@ -125,6 +173,9 @@ def error_landscape(file, thickness, simEL, plot = False):
         """
     
     wavelengths, angles, sri = load_sri_file(file)
+    
+    if weights is None:
+        weigths  = 1.0
     
     wl_sim = simEL['wl']
     angles_sim = simEL['angles']
@@ -202,7 +253,7 @@ def fit_thickness(file, simEL, plot = False):
     error_pos = np.zeros(dAL_sim.shape)
     
     for i,d in enumerate(dAL_sim):
-        Error_Landscape,_,_,_= error_landscape(file, d, simEL, plot = plot)
+        Error_Landscape,_,_,_= error_landscape(file, d, simEL, plot = False)
         error_pos[i] = Error_Landscape.min()
     
     # The index with the minimum error from all the thicknesses tried
@@ -227,9 +278,9 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
         lc_SimData += w * simEL_positions[i]
     
     # Abs error
-    error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
+    # error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
     # Quadratic error
-    # error = ((np.sqrt((exp_data - lc_SimData)**2)).mean(axis = -1)).mean(axis = -1)
+    error = ((np.sqrt((exp_data - lc_SimData)**2)).mean(axis = -1)).mean(axis = -1)
 #     print (error)
     
     if fitting:

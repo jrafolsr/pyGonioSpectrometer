@@ -9,23 +9,6 @@ from pyGonioSpectrometer.instrumentation import list_spectrometers
 
 from time import sleep, time
 
-# This will only be used if the script is called as it is, not if it is used as a function
-name_motor = 'ASRL7::INSTR'
-# Assuming there is only one spectrometer, so taking the first element
-name_spectrometer = list_spectrometers()[0]
-# Define measurement variables
-folder = r'C:\Users\OPEGLAB\Documents\data\goniospectrometer\joan'
-filename = 'LEC_E01D2_time-series'
-angle_step = 10
-angle_max = 80
-# Define variables for the spectrometer measurements
-integration_time = 200
-n_spectra = 20
-disable_gonio = False
-plot = False
-# Define variables for the time series
-interval = 600 # interval to wait in seconds
-
     
 def gonio_time_series(interval, name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
@@ -67,5 +50,23 @@ def gonio_time_series(interval, name_motor,angle_max, angle_step,\
             break
         
 if __name__ == '__main__':
+    
+    # This will only be used if the script is called as it is, not if it is used as a function
+    name_motor = 'ASRL7::INSTR'
+    # Assuming there is only one spectrometer, so taking the first element
+    name_spectrometer = list_spectrometers()[0]
+    # Define measurement variables
+    folder = r'C:\Users\OPEGLAB\Documents\data\goniospectrometer\joan'
+    filename = 'LEC_E01D2_time-series'
+    angle_step = 10
+    angle_max = 80
+    # Define variables for the spectrometer measurements
+    integration_time = 200
+    n_spectra = 20
+    disable_gonio = False
+    plot = False
+    # Define variables for the time series
+    interval = 600 # interval to wait in seconds
+
     gonio_time_series(interval, name_motor, angle_max, angle_step, name_spectrometer, integration_time, n_spectra,filename, folder, disable_gonio, plot)
     

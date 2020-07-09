@@ -11,6 +11,13 @@ from time import sleep
 
 
 def list_spectrometers():
+    """
+    This function will list all the spectrometers availables in the system.
+    
+    Returns:
+    --------
+    ldevices: a list with all the devices available. Each element of the list will be a seabreeze.spectrometers.Spectrometer class. If none is available, it returns an empty list.
+    """
     ldevices = list_devices()
     if ldevices == []:
         print('WARNING: No spectrometer found. Check the connections.')
@@ -22,7 +29,18 @@ def list_spectrometers():
         
 
 class SpectraMeasurement():
-    """Wrapper to for the Spectrometer class that helps to perform measurements, from configurating the spectrometers to return spetra averages."""
+    """
+    Wrapper for the seabreeze.spectrometers.Spectrometer class that helps to perform measurements, from configurating the spectrometers to return spectra averages.
+    
+    Parameters:
+    -----------
+    device: seabreeze.spectrometers.Spectrometer class
+        You can get it from list_spectrometers().
+    integration_time: int or float, optional
+        Sets the integration time in ms. The default is 1 ms.
+    n_spectra: int, optional 
+        Number of spectra that will be averaged when using the method get_averaged_spectra(). The default is 1.
+    """
     def __init__(self, device, integration_time = 1, n_spectra = 1):
         """Initalize all values"""
         if device is None:
@@ -41,6 +59,20 @@ class SpectraMeasurement():
         self.correct_dark_counts  = False
         
     def config(self, integration_time, n_spectra = 1, correct_nonlinearity = True, correct_dark_counts = False):
+        """
+        Method to further configure the measurement once initialized. Initialy though to change only the integration time, although some other configuration parameters can be changed.
+        
+        Parameters:
+        -----------
+        integration_time: int or float
+            Sets the integration time in ms.
+        n_spectra: int, optional 
+            Number of spectra that will be averaged when using the method get_averaged_spectra(). The default is 1.
+        correct_nonlinearity: boolean, optional
+            Whether to apply or no the built-in non-linearity correction when getting the intensities. The default is True
+        correct_dark_counts: boolean, optional
+            Whether to apply or no the built-in dark counts correction when getting the intensities. The default is False
+        """
         self.integration_time = integration_time * 1000
         self.spec.integration_time_micros(self.integration_time)
         self.n_spectra = n_spectra 
@@ -48,11 +80,28 @@ class SpectraMeasurement():
         self.correct_dark_counts = correct_dark_counts
         
     def get_wavelengths(self):
+        """
+        Method that return the an array with the wavelengths
+        
+        Returns:
+        --------
+        wavelengths: np.array with the wavelengths from the spectrometer
+        
+        """
         if self.wavelengths is None:
             self.wavelengths = self.spec.wavelengths()
         return self.wavelengths[20:] # The first 20 pixels are not valid
     
     def get_intensities(self):
+        """
+        Method that return the an array with the intensities
+        
+        Returns:
+        --------
+        intensities: np.array with the intensities from the spectrometer
+            OBS! The n_spectra does not apply here
+        """
+        
         try:
             self.intensities = self.spec.intensities(self.correct_dark_counts, self.correct_nonlinearity)
         except Exception as e:
@@ -62,6 +111,15 @@ class SpectraMeasurement():
         return self.intensities[20:] # The first 20 pixels are not valid
     
     def get_averaged_intensities(self):
+        """
+        Method that return the an array with the averaged intensities over n_spectra times, set by the initial configuration or the config() method
+        
+        Returns:
+        --------
+        intensities: np.array with the averaged intensities from the spectrometer
+
+        """
+        
         intensities = self.get_intensities()
         if self.n_spectra > 1:
             for i in range(self.n_spectra-1):
@@ -72,15 +130,29 @@ class SpectraMeasurement():
     
    
     def set_background(self, bkg):
+        """
+        DEPRECATED
+        """
+        
         self.background = bkg
         
     def get_spectra(self):
+        """
+        DEPRECATED
+        """
+        
         if self.background is None:
             return self.get_wavelengths(), self.get_intensities()
         else:
             return self.get_wavelengths(), self.get_intensities() - self.background
         
     def close(self):
+        """
+        Method that closes and frees the resource.
+        """
         self.spec.close()
     def open(self):
+        """
+        Method that opens the resource.
+        """
         self.spec.open()

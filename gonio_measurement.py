@@ -26,9 +26,38 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
                       filename = 'gonio_mesurement', folder = '.',\
                       disable_gonio = False, plot = True):
-     
+    """
+    Performs a complete measurement for the goniospectrometer setup, by taking spectra at every specified angle, for the whole forward hemisphere.
+    
+    Parameters:
+    -----------
+    name_motor: str
+        String containg the COM address where the motor driver is located (the Arduino). You can get the available ports by using the list_ports() function.
+    angle_max: int or float
+        Maximum angle to scan with the goniometer in deg.
+    angle_step: int or float
+        Angular step that the motor will perform in deg. Preferably a divisor of angle_max and integer, the program does not check for this conditions to be fullfilled.
+    name_spectrometer: seabreeze.spectrometers.Spectrometer class
+        The spectrometr resource as the specified class. You can get it from list_spectrometers().
+    integration_time: int or float
+        Sets the integration time in ms.
+    n_spectra: int
+        Number of spectra that will be averaged.
+    filename: str, optional
+        A string containing the output filename. The default is 'gonio_measurement'.
+    folder: str, optional
+        Path, relative or absolute, to the directory where to save the data. Should exists, the program does not check if it does. The default is '.\'.
+    disable_gonio: boolean, optional
+        Whether to disable the goniometer motor after the measruement. The default is False.
+    plot: boolean, optional
+        Whether to plot or not the data. It is better to set it to false for a time series measurement, otherwise one will end with to many open windows. The default it True.
+    
+    """ 
+    # Initializing the gonio and flame objects.
+    
     gonio = None
     flame = None
+    
     try:
         # Creates the object that will control the steppers
         gonio = ArduinoMotorController(name_motor)
@@ -215,12 +244,19 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
             flame.close()
     
 def plot_measurement(fig, ax, x, y, label = None):
+    """
+    Function to plot the spectra given the figure and axis handlers together with the x, and y data.
+    The pause is to allow the live-plotting.
+    """
     ax.plot(x,y, label = label)
     if label is not None:
         ax.legend()
     plt.pause(0.25)
     
 def write_to_file(etime, angle, data, file, debug = False):
+    """
+    Function that writes into a file the data taken at each gonio step. It takes as inputs the etime (ellapsed time) and angle as scalers, the data (vector) and the file (as the path where to save the data). The debug is just to print it on screen or not.
+    """
     t  = np.hstack((etime, angle, data))
     t = t.reshape((1, t.shape[0]))
     with open(file, 'a') as f:

@@ -14,19 +14,22 @@ import os
 
 fcal = pjoin(os.path.dirname(__file__), 'calibration_files')
 # Instrument response function, 160504 ML
-path_IRF = pjoin(fcal, 'GonioSpec_IRF_160504')
+path_IRF = pjoin(fcal, 'GonioSpec_IRF_160504.txt')
 
 # Eye response function
-path_eye_response = pjoin(fcal, 'CIE1988photopic')
+path_eye_response = pjoin(fcal, 'CIE1988photopic.txt')
 
 ABS_CALFACTOR = 5.94e6 # Calibration from 23/06/2020
+# ABS_CALFACTOR = 5.4178E6 # OLD Mattias' absolute numbers calibration factor, 170224 ML
 PIXEL_SIZE = 4e-6 # m^2, Size of a McScience substrate pixel. Equipment is designed to be used with these substrates only.
 
 def process_goniodata(file, correct_offset = True, current = None, plot = False, path_IRF = path_IRF, path_eye_response = path_eye_response, check_time_stability = False):
     """Read the file created by the setup Gonio spectrometer 3.0""" 
     # Load calibration files
-    IRF = loadmat(path_IRF)['GonioSpec_IRF_160504'][:,[1]].T
-    EyeResponse = loadmat(path_eye_response)['CIE1988Photopic']
+    IRF = np.loadtxt(path_IRF, usecols = 1, unpack=True)
+    
+    # EyeResponse = loadmat(path_eye_response)['CIE1988Photopic']
+    EyeResponse = np.loadtxt(path_eye_response)
     
     # First 3-row contains the starting time, the  integration time and the averaged times
     iTime = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
@@ -38,7 +41,10 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     # vTimes -= vTimes[0] # Zero the time vector to the first spectra adquisition
     Angles = data[2:,1]
     Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
+     
     Spectra = MeasSpectra - DarkSpectra
+    
+    
     #Check the time stability of the forward spectra, before the sorting
     if check_time_stability:
         fig, ax = plt.subplots()
@@ -70,6 +76,12 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     # Processing the data using all the corrections needed
     # The spectral radiant intensity [W sr-1 nm-1]
     SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (IntTime/1000)
+    
+    # Cut innecessary wavelengths assuming the range 450 - 800 nm to more than enough
+    filt_by_wl = (Wavelengths >=450) & (Wavelengths <= 800)
+    Wavelengths = Wavelengths[filt_by_wl]
+    SpecRadInt = SpecRadInt[:, filt_by_wl]
+    
     
     # The spectral luminous intensity [lm sr-1 nm-1]
     # Calculate first the photopic eye response for the Wavelength vector
@@ -164,11 +176,13 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
 def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_eye_response):
     """Read the L0-files L0 created by the setup Gonio spectrometer 3.0""" 
     # Load calibration files
-    IRF = loadmat(path_IRF)['GonioSpec_IRF_160504'][:,[1]].T
-    EyeResponse = loadmat(path_eye_response)['CIE1988Photopic']
+    IRF = np.loadtxt(path_IRF, usecols = 1, unpack=True)
+    # EyeResponse = loadmat(path_eye_response)['CIE1988Photopic']
+    EyeResponse = np.loadtxt(path_eye_response)
     
     vtimes = np.array([], dtype = np.datetime64)
     vluminances = np.array([])
+    
     if t0 is None:
         print('INFO: No t0 is provided, t0 taken from the first input file.')
         t0 = np.loadtxt(files[0], max_rows = 1, dtype = np.datetime64)
@@ -185,7 +199,12 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
         
         # The spectral radiant intensity [W sr-1 nm-1]
         SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (integration_times/1000)
-    
+        
+        # Cut innecessary wavelengths assuming the range 450 - 800 nm to more than enough
+        filt_by_wl = (Wavelengths >=450) & (Wavelengths <= 800)
+        Wavelengths = Wavelengths[filt_by_wl]
+        SpecRadInt = SpecRadInt[:, filt_by_wl]
+        
         # The spectral luminous intensity [lm sr-1 nm-1]
         # Calculate first the photopic eye response for the Wavelength vector
         photopic_eye_response = (683.002 * np.interp(Wavelengths, EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(Wavelengths))
