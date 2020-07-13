@@ -136,6 +136,7 @@ class ArduinoMotorController():
                 sleep(0.01)
             except KeyboardInterrupt:
                 break
+            
         print('INFO: '  + self.motor.read())
         sleep(0.5)
             
