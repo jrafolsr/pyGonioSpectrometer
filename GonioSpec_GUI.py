@@ -309,7 +309,7 @@ def update_graph(n_adq, n_upd, n_clr, figure):
         temp = flame.get_intensities()
         
         if flame.background is not None:
-            SRI.append(calculate_sri(WAVELENGTHS, temp))
+            SRI.append(calculate_sri(WAVELENGTHS, temp -  flame.background))
             figure['data'][1] = go.Scatter(x=list(range(len(SRI))), y=SRI, name = 'counts', mode = 'markers', xaxis = 'x2', yaxis = 'y2')
 
         figure['data'][0] = go.Scatter(x=WAVELENGTHS, y=temp, name = 'counts', mode = 'lines')    
