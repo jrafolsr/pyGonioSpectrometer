@@ -202,11 +202,11 @@ void MoveShutter(int steps){
   
 //Serial.println("Moving the shutter according to the global "opens" ");
   if (sopen == 0){
-    digitalWrite(sdir, LOW); //Pull direction pin low to move "forward"
-    sopen = 1; // Change the variable so next time in does the reverse
+    digitalWrite(sdir, HIGH); //Pull direction pin low to move "reverse"
+    sopen = 1; // Change the variable so next time in does the FORWARD
   }
   else if (sopen == 1){
-    digitalWrite(sdir, HIGH); //Pull direction pin low to move in "reverse"
+    digitalWrite(sdir, LOW); //Pull direction pin low to move in "forward"
     sopen = 0;
   }
   
