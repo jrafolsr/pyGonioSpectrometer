@@ -41,7 +41,7 @@ class SpectraMeasurement():
     n_spectra: int, optional 
         Number of spectra that will be averaged when using the method get_averaged_spectra(). The default is 1.
     """
-    def __init__(self, device, integration_time = 1, n_spectra = 1):
+    def __init__(self, device, integration_time = 10, n_spectra = 1):
         """Initalize all values"""
         if device is None:
             raise Exception('ERROR: USB spectrometer port not provided')
@@ -121,6 +121,7 @@ class SpectraMeasurement():
         """
         
         intensities = self.get_intensities()
+        
         if self.n_spectra > 1:
             for i in range(self.n_spectra-1):
                 intensities += self.get_intensities()
@@ -156,3 +157,4 @@ class SpectraMeasurement():
         Method that opens the resource.
         """
         self.spec.open()
+        self.config(self.integration_time, self.n_spectra)
