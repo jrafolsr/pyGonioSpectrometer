@@ -106,14 +106,15 @@ app.layout = html.Div(children =  [
           html.Span('Spectrometer ID'),
             dcc.Dropdown(id  = 'dropdown-spectrometers',
                 options = [{'label' : str(name), 'value': name.serial_number} for name in  LSPECTROMETERS],
-                value = 'No devices available' if LSPECTROMETERS == [] else  LSPECTROMETERS[0].serial_number,
+                value = None if LSPECTROMETERS == [] else  LSPECTROMETERS[0].serial_number,
+                placeholder = 'No detected spectrometers',
                 style = {'width' : '200'},
                 searchable = False
             ),
         html.Span('Arduino COM port:'),
         dcc.Dropdown(id  = 'dropdown-arduino',
             options = [{'label' : name, 'value': name} for name in LPORTS],
-            value = 'No detected ports' if LPORTS == [] else ARDUINO_PORT,
+            value = ARDUINO_PORT if ARDUINO_PORT in LPORTS else None,
             placeholder = 'No detected ports',
             style = {'width' : '200'},
             searchable = False
@@ -527,8 +528,8 @@ def refresh_ports(n_ports):
     options_arduino = [{'label' : name, 'value': name} for name in LPORTS]
     options_spec = [{'label' : str(name), 'value': name.serial_number} for name in  LSPECTROMETERS]
     
-    value_spec = 'No devices available' if LSPECTROMETERS == [] else  LSPECTROMETERS[0].serial_number
-    value_arduino = 'No detected ports' if LPORTS == [] else LPORTS[0]
+    value_spec = None if LSPECTROMETERS == [] else  LSPECTROMETERS[0].serial_number
+    value_arduino = ARDUINO_PORT if ARDUINO_PORT in LPORTS else None
 
     return options_spec, options_arduino, value_spec, value_arduino
 
