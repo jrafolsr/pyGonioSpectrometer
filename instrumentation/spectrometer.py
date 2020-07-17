@@ -73,6 +73,7 @@ class SpectraMeasurement():
         correct_dark_counts: boolean, optional
             Whether to apply or no the built-in dark counts correction when getting the intensities. The default is False
         """
+        
         self.integration_time = integration_time * 1000
         self.spec.integration_time_micros(self.integration_time)
         self.n_spectra = n_spectra 
@@ -157,4 +158,3 @@ class SpectraMeasurement():
         Method that opens the resource.
         """
         self.spec.open()
-        self.config(self.integration_time, self.n_spectra)
