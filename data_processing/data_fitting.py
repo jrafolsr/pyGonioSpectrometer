@@ -7,6 +7,8 @@ Created on Wed Jun 17 15:31:51 2020
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.io  import loadmat
+from scipy.interpolate import interp1d
+
 
 
 def load_simdata(file, wl_limit = None, angle_max = None):
@@ -108,26 +110,52 @@ def load_simdata_new(file, wl_limit = None, angle_max = None):
 
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
-    """Interpolates the input sri with wl_i and angles_i to the output wl_o and angles_o and normalizes to max wl of the zero angle"""
-    # Manually add the 0 intensity at 90°
-    angles_i = (np.hstack([-90, angles_i, 90]))
-    N = len(wl_i) # Original wavelengths vector length
+    """Interpolates the input (experimental sri with wl_i and angles_i to the output wl_o and angles_o and normalizes to max wl of the zero angle
+        Parameters
+        ----------
+        sri: 2D np.array
+            The array with the spectral radiant intensity (wavelength as rows) for each of the collected angles (as columns). It assumes that there are 3 zero angles, as it is the output of process_data function.
+        wl_i: 1D np.array
+            Array with the input wavelengths, should match the length of the first dimension of the sri.
+        angles_i: 1D np.array
+            Array with the input angles, should match the length of the second dimension of the sri.    
+        wl_o: 1D np.array
+            Array with the output wavelengths to which the data will be interpolated.
+        angles_i: 1D np.array
+             Array with the output angles to which the data will be interpolated.
+             
+        Returns:
+        --------
+        NormSRI : interpolated and normalized (to zero angles) spectral radiant intensity. It has len(wl_o) rows and len(angles_o) columns. If points outside the range are requested it will extrapole while giving a warning, it is assumed to be fine as long as it is not a large extrapolation.
+    """
     
-    sri = np.hstack([np.zeros((N,1)), sri, np.zeros((N,1))])
+    # Average the zero angles, which will be the three central values
+    Nzeros = int(len(angles_i - 1)/2)
+    zero_slice = slice(Nzeros-1, Nzeros+2)
+    zero_angles = angles_i[zero_slice].mean()
+    zero_sri = sri[:, zero_slice].mean(axis = -1, keepdims =  True)
     
-    # I assume the data is already sorted
-    a_sri = np.zeros((N, len(angles_o)))
+    neg_slice = slice(0,Nzeros-1) # The negative angles slice object
+    pos_slice = slice(Nzeros+2,None) # The negative angles slice object
     
-    for i in range(N):
-        # Take both hemispheres and do the average
-        a_sri[i,:] = (np.interp(angles_o, angles_i, sri[i,:])+\
-                            np.interp(-1.*angles_o, angles_i, sri[i,:])) / 2
+    # Creating the new angles_i vector and sri matrice, once the 3-zeros averaged
+    angles_i = (np.hstack([angles_i[neg_slice],zero_angles, angles_i[pos_slice]]))    
+    sri = np.hstack([sri[:, neg_slice],zero_sri, sri[:, pos_slice]])
+    
+    # Warnings if the data has to be extrapolated
+    if wl_o[0] < wl_i[0] or wl_o[-1] > wl_i[-1]:
+        print('WARNING: The output wavelength range ({0:.0f} - {1:.0f} nm) will be extrapolated from the input range  ({2:.0f} - {3:.0f} nm)'.format(wl_o[0],wl_o[-1],wl_i[0],wl_i[-1]))
+    if angles_o[0] < angles_i[0] or angles_o[-1] > angles_i[-1]:
+        print('WARNING: The output angle range ({0:.0f} - {1:.0f} °) will be extrapolated from the input range  ({2:.0f} to {3:.0f} °)'.format(angles_o[0],angles_o[-1],angles_i[0],angles_i[-1]))
+
+    # Create the interpolation function for the angles
+    f = interp1d(angles_i, sri, kind = 'quadratic', axis = -1, fill_value='extrapolate')
+    # Take both hemispheres and do the average
+    a_sri = (f(angles_o) + f(-1.*angles_o)) / 2
                           
-    # Interpolate to wavelengths from simulation wl_o
-    i_sri = np.zeros((len(wl_o), len(angles_o)))  
-    
-    for i in range(len(angles_o)):
-        i_sri[:,i] = np.interp(wl_o, wl_i, a_sri[:,i])
+    # Create the interpolation function for the angles
+    g = interp1d(wl_i, a_sri, kind = 'quadratic', axis = 0, fill_value= 0, bounds_error=False) 
+    i_sri = g(wl_o)
     
     # Normalize by the angle zero, assumin the matrix is sorted to the absolute angle!!!
     NormSRI = i_sri / i_sri[:,0].max()
