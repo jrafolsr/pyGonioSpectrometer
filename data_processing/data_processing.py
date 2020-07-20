@@ -8,18 +8,18 @@ from os.path import join as pjoin
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-from scipy.io  import loadmat
 import os 
+import seaborn as sns
 
 
 fcal = pjoin(os.path.dirname(__file__), 'calibration_files')
 # Instrument response function, 160504 ML
-path_IRF = pjoin(fcal, 'GonioSpec_IRF_160504.txt')
+path_IRF = pjoin(fcal, 'IRF_FlameBlueFiber_wLens2945K.txt')
 
 # Eye response function
 path_eye_response = pjoin(fcal, 'CIE1988photopic.txt')
 
-ABS_CALFACTOR = 5.94e6 # Calibration from 23/06/2020
+ABS_CALFACTOR = 7.10e6 # Calibration from 15/07/2020
 # ABS_CALFACTOR = 5.4178E6 # OLD Mattias' absolute numbers calibration factor, 170224 ML
 PIXEL_SIZE = 4e-6 # m^2, Size of a McScience substrate pixel. Equipment is designed to be used with these substrates only.
 
@@ -78,7 +78,7 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (IntTime/1000)
     
     # Cut innecessary wavelengths assuming the range 450 - 800 nm to more than enough
-    filt_by_wl = (Wavelengths >=450) & (Wavelengths <= 800)
+    filt_by_wl = (Wavelengths >=449) & (Wavelengths <= 801)
     Wavelengths = Wavelengths[filt_by_wl]
     SpecRadInt = SpecRadInt[:, filt_by_wl]
     
@@ -108,7 +108,9 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     EQE = eqe_calculator(Wavelengths,Angles, SpecRadInt, current) if current != None else np.nan
     # Lambertian factor calculation
     Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot)
-    text = f'# Angle_offset = {angle_offset:.2f}°\n' if correct_offset else '# Angle_offset = nan\n'
+    text = f'# IRF file: {path_IRF:s}\n'
+    text += f'# ABS_CALFACTOR: {ABS_CALFACTOR:4.2e}\n'
+    text += f'# Angle_offset = {angle_offset:.2f}°\n' if correct_offset else '# Angle_offset = nan\n'
     text += f'# I = {current*1000:.2f} mA\n' if current != None else '# Current = nan mA\n'
     text += f'# L0 =  {Fw_Luminance:.2f} cd m-2\n'
     text += f'# EQE =  {EQE:.2f} %\n'
@@ -124,7 +126,7 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
     tdata = np.vstack((vTimes, Angles, LumInt, LumIntNorm, Luminance, LuminanceNorm)).T
                       
     with open(fintegrated, 'a') as f:
-        header = 'eTime\t Angles \t LuminousIntensity \t NormLuminousInensity \t Luminance\t NormLuminance\n'
+        header = 'eTime\t Angles \t LuminousIntensity \t NormLuminousIntensity \t Luminance\t NormLuminance\n'
         header += 's \t ° \t cd \t a.u. \t  cd m-2\t a.u.'
         np.savetxt(f, tdata, fmt = '% 10.6g\t', header = header)
     
@@ -173,7 +175,7 @@ def process_goniodata(file, correct_offset = True, current = None, plot = False,
             Fw_Luminance,Fw_Current_eff, EQE
 
 
-def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_eye_response):
+def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_eye_response, plot = False):
     """Read the L0-files L0 created by the setup Gonio spectrometer 3.0""" 
     # Load calibration files
     IRF = np.loadtxt(path_IRF, usecols = 1, unpack=True)
@@ -201,7 +203,7 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
         SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (integration_times/1000)
         
         # Cut innecessary wavelengths assuming the range 450 - 800 nm to more than enough
-        filt_by_wl = (Wavelengths >=450) & (Wavelengths <= 800)
+        filt_by_wl = (Wavelengths >=449) & (Wavelengths <= 801)
         Wavelengths = Wavelengths[filt_by_wl]
         SpecRadInt = SpecRadInt[:, filt_by_wl]
         
@@ -222,6 +224,52 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
     folder = os.path.dirname(files[0])
     np.savetxt(pjoin(folder, 'time-luminance.dat'), data, header = header, fmt = '%10.6f')
     return vtimes, vluminances
+
+def plot_spectral_evolution(file, t0 = None, N = 10, skiprows = 0):
+    """Read the L0-files L0 and plot its spectra radiant intensity""" 
+    # Load calibration files
+    IRF = np.loadtxt(path_IRF, usecols = 1, unpack=True)
+    
+    
+    if t0 is None:
+        print('INFO: No t0 is provided, t0 taken from the first input file.')
+        t0 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
+        
+
+    t1 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
+    # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
+    data = np.loadtxt(file, skiprows = 3)
+    aTimes = data[2:,0]
+    integration_times = data[2:,1]
+    integration_times = integration_times.reshape((len(integration_times), 1))
+    Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
+    Spectra = MeasSpectra - DarkSpectra
+    
+    # The spectral radiant intensity [W sr-1 nm-1]
+    SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (integration_times/1000)
+    
+    # Cut innecessary wavelengths assuming the range 450 - 800 nm to more than enough
+    filt_by_wl = (Wavelengths >=450) & (Wavelengths <= 800)
+    Wavelengths = Wavelengths[filt_by_wl]
+    SpecRadInt = SpecRadInt[:, filt_by_wl]
+    
+    NormSpecRadInt = SpecRadInt / SpecRadInt.max(axis = -1, keepdims=True)
+    
+    rtimes = [t1 + int(s*1e6) for s in aTimes]
+
+    rtimes = np.float64(rtimes - t0)/1e6
+    
+    with sns.color_palette("coolwarm", N):
+        fig, ax = plt.subplots()
+        
+        for i in range(skiprows, N + skiprows):
+            ax.plot(Wavelengths, NormSpecRadInt[i,:], label = f'{rtimes[i]:.1f}s')
+        
+        ax.legend()
+        ax.set_xlabel('Wavelength (nm)')
+        ax.set_ylabel('Norm. EL (a.u.)')
+        
+    return rtimes, NormSpecRadInt
 
 def find_symmetry(wavelengths,angles,spectra, plot = False):
     # Using the radiant intensity instead of the spectral radiant intensity (uncalibrated)
