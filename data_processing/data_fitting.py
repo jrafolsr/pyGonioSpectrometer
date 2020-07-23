@@ -8,6 +8,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.io  import loadmat
 from scipy.interpolate import interp1d
+import seaborn as sns
 
 
 
@@ -203,7 +204,9 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
     wavelengths, angles, sri = load_sri_file(file)
     
     if weights is None:
-        weigths  = 1.0
+        weights  = 1.0
+    else:
+        print('INFO: The error will be weighted.')
     
     wl_sim = simEL['wl']
     angles_sim = simEL['angles']
@@ -229,7 +232,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
 
     for i in range(N_pos):
         # Substract the exp. amd sim. data and do the mean of the abs error in both axis, wavelengths and angles
-        Error_Landscape[i] = (np.abs(iNormExpSRI - NormSimSRI[i])).mean().mean()
+        Error_Landscape[i] = (np.abs(iNormExpSRI - NormSimSRI[i]) * weights).mean(axis = 0).mean()
     
     # Take the minimum error, which will give the best fit to the emitter position
     ipos_min = Error_Landscape.argmin() # The i-th element corresponding to the min
@@ -255,25 +258,30 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         
         fig, ax = plt.subplots()
         ax.plot(ipos_sim, Error_Landscape, 'o-', label = f'd = {thickness:.0f}\nmin_pos = {ipos_sim[ipos_min]:.2f}')
-        ax.set_xlabel('Rel.position of the emitter')
+        ax.set_xlabel('Rel. position of the emitter')
         ax.set_ylabel('$\Delta_{sim}^{meas}$')
         ax.set_title("Error landscape for emitter position")
         ax.legend()
         
-        fig, ax = plt.subplots()
         
-        for i in range(0,len(angles_sim), 1):
-            ax.plot(wl_sim, NormSimSRI[ipos_min][:,i],'--C' + str(i))
-            ax.plot(wl_sim, iNormExpSRI[:,i],'-C' + str(i), label = f'{angles_sim[i]:}°')
-            ax.set_xlabel('Wavelength (nm)')
-            ax.set_ylabel('SRI (a.u.)')
-            ax.set_title(f'Experimental and simulated emission spectra\n dAL = {thickness}, pos = {pos_min:.2f}')
+        N = len(angles_sim)
+        offset = 0.1 * (N-1)
+        
+        fig, ax = plt.subplots(figsize = (6,4))
+
+        for i in range(0,N, 1):
+            ax.plot(wl_sim, offset - i*0.1 + NormSimSRI[ipos_min][:,i], '--', color = 'black')
+            ax.plot(wl_sim, offset - i*0.1 + iNormExpSRI[:,i], label = f'{angles_sim[i]:}°')
+            
+        ax.set_xlabel('Wavelength (nm)')
+        ax.set_ylabel('SRI (a.u.)')
+        ax.set_title(f'Experimental and simulated emission spectra\n dAL = {thickness}, pos = {pos_min:.2f}')
         ax.legend()
     
     return Error_Landscape, pos_min, iNormExpSRI, NormSimSRI[ipos_min]
 
 
-def fit_thickness(file, simEL, plot = False):
+def fit_thickness(file, simEL, plot = False, weights = None):
     """Finds the thickness corresponding to the minimum error using the error_landscape function.
  """
     dAL_sim = simEL['dAL']
@@ -281,7 +289,7 @@ def fit_thickness(file, simEL, plot = False):
     error_pos = np.zeros(dAL_sim.shape)
     
     for i,d in enumerate(dAL_sim):
-        Error_Landscape,_,_,_= error_landscape(file, d, simEL, plot = False)
+        Error_Landscape,_,_,_= error_landscape(file, d, simEL, plot = False, weights = weights)
         error_pos[i] = Error_Landscape.min()
     
     # The index with the minimum error from all the thicknesses tried
