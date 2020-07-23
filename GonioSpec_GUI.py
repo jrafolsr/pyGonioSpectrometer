@@ -86,6 +86,7 @@ plot_layout = dict(margin =  {'l': 60, 'r': 60, 'b': 60, 't': 20},\
                             anchor="x2"))
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+app.title = 'Goniospectrometer'
 app.layout = html.Div(children =  [
         html.Div(id='live-update-text', className = 'row', children  = [
         html.Div(className = 'column left', children = [
