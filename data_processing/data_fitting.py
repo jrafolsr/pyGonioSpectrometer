@@ -8,8 +8,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.io  import loadmat
 from scipy.interpolate import interp1d
-import seaborn as sns
-
 
 
 def load_simdata(file, wl_limit = None, angle_max = None):
@@ -154,7 +152,7 @@ def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
     # Take both hemispheres and do the average
     a_sri = (f(angles_o) + f(-1.*angles_o)) / 2
                           
-    # Create the interpolation function for the angles
+    # Create the interpolation function for the wavelengths
     g = interp1d(wl_i, a_sri, kind = 'quadratic', axis = 0, fill_value= 0, bounds_error=False) 
     i_sri = g(wl_o)
     
@@ -256,6 +254,8 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         ax1.set_xlabel('Angle (°)')
         ax2.set_xlabel('Angle (°)')
         
+        fig.savefig(file[:-4] + '_aSRI_heatmap.png', bbox_acnhor = 'tight')
+        
         fig, ax = plt.subplots()
         ax.plot(ipos_sim, Error_Landscape, 'o-', label = f'd = {thickness:.0f}\nmin_pos = {ipos_sim[ipos_min]:.2f}')
         ax.set_xlabel('Rel. position of the emitter')
@@ -263,21 +263,24 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         ax.set_title("Error landscape for emitter position")
         ax.legend()
         
+        fig.savefig(file[:-4] + '_ipos_errorlandscape.png', bbox_inches = 'tight')
         
         N = len(angles_sim)
-        offset = 0.1 * (N-1)
+        offset = 0.25 * (N-1)
         
         fig, ax = plt.subplots(figsize = (6,4))
 
         for i in range(0,N, 1):
-            ax.plot(wl_sim, offset - i*0.1 + NormSimSRI[ipos_min][:,i], '--', color = 'black')
-            ax.plot(wl_sim, offset - i*0.1 + iNormExpSRI[:,i], label = f'{angles_sim[i]:}°')
-            
+            ax.plot(wl_sim, offset - i*0.25 + NormSimSRI[ipos_min][:,i], f'--C{i}')
+            ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], f'-C{i}', label = f'{angles_sim[i]:}°')
+            ax.text(450,  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°')
         ax.set_xlabel('Wavelength (nm)')
         ax.set_ylabel('SRI (a.u.)')
         ax.set_title(f'Experimental and simulated emission spectra\n dAL = {thickness}, pos = {pos_min:.2f}')
-        ax.legend()
-    
+        # ax.legend()
+        
+        fig.savefig(file[:-4] + '_fitting.png', bbox_inches = 'tight')
+        
     return Error_Landscape, pos_min, iNormExpSRI, NormSimSRI[ipos_min]
 
 
