@@ -97,16 +97,21 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
         # Get the interpolation function from the interp1d function
         fdrift = interp1d(vTimes[slicing], zero_ri/zero_ri[0], kind = 'linear')
         
+        uncorrected = np.trapz(Spectra*IRF, Wavelengths, axis =  1) / zero_ri[0] *100
+        
         # Correct the spectra using the interpolation function
         Spectra /= fdrift(vTimes).reshape((len(vTimes), 1))
-
+        
+        corrected = np.trapz(Spectra*IRF, Wavelengths, axis =  1) / zero_ri[0] *100
+        
         print('INFO: Data has been corrected by the time drift derived from the 0° data')
         # Plot the report if asked
         if plot:
             fig, ax = plt.subplots()
-            ax.plot(vTimes[slicing], zero_ri/zero_ri[0] * 100, 'oC0', label  = 'L0 evolution')
+            ax.plot(vTimes[slicing], zero_ri/zero_ri[0] * 100, 'oC0', label  = 'I0 evolution')
             ax.plot(vTimes, fdrift(vTimes) * 100, '--C0', label = 'interpolation')
-            
+            ax.plot(vTimes, uncorrected, 'xC0', label = 'uncorrected')
+            ax.plot(vTimes, corrected, '.C2', label = 'corrected')
             ax.set_xlabel('Ellapsed time (s)')
             ax.set_ylabel('Rel. change radiant intensity (%)')
             ax.set_title('Time stability of forward angle')
@@ -196,18 +201,19 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
         tdata = np.vstack((Wavelengths.reshape(1, len(Wavelengths)), SpecRadInt)).T
         fmt = ['%10.2f'] + ['%10.6e' for i in range(n)]
         np.savetxt(f, tdata, fmt = fmt, header = 'Wavelengths\t AngularSpectralRadiantIntensity', delimiter='\t')
-        
-    # Saving the spectral part of the data
-    fphotometric = file[:-4] + '.sli'
-    n = len(Angles)
-    with open(fphotometric, 'w') as f:
-        tdata = np.hstack((np.nan, vTimes))
-        np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'ellapsedTime (s)', delimiter='\t')
-        tdata = np.hstack((np.nan, Angles))
-        np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'angles (°)',delimiter='\t')
-        tdata = np.vstack((Wavelengths.reshape(1, len(Wavelengths)), SpecLumInt)).T
-        fmt = ['%10.2f'] + ['%10.6e' for i in range(n)]
-        np.savetxt(f, tdata, fmt = fmt, header = 'Wavelengths\t AngularSpectralLuminousIntensity', delimiter='\t')
+    
+    # I do not need to save the photometric spectral part of the data, do I?
+    # # Saving the spectral part of the data
+    # fphotometric = file[:-4] + '.sli'
+    # n = len(Angles)
+    # with open(fphotometric, 'w') as f:
+    #     tdata = np.hstack((np.nan, vTimes))
+    #     np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'ellapsedTime (s)', delimiter='\t')
+    #     tdata = np.hstack((np.nan, Angles))
+    #     np.savetxt(f, tdata.reshape((1, n+1)), fmt = '%10.2f', header = 'angles (°)',delimiter='\t')
+    #     tdata = np.vstack((Wavelengths.reshape(1, len(Wavelengths)), SpecLumInt)).T
+    #     fmt = ['%10.2f'] + ['%10.6e' for i in range(n)]
+    #     np.savetxt(f, tdata, fmt = fmt, header = 'Wavelengths\t AngularSpectralLuminousIntensity', delimiter='\t')
     
     
         
@@ -243,8 +249,9 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
     if t0 is None:
         print('INFO: No t0 is provided, t0 taken from the first input file.')
         t0 = np.loadtxt(files[0], max_rows = 1, dtype = np.datetime64)
-        
-    for file in files:
+   
+    
+    for i, file in enumerate(files):
         t1 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
         # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
         data = np.loadtxt(file, skiprows = 3)
@@ -262,6 +269,10 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
         Wavelengths = Wavelengths[filt_by_wl]
         SpecRadInt = SpecRadInt[:, filt_by_wl]
         
+        if i == 0:
+            data_to_save = Wavelengths.reshape((1, len(Wavelengths)))
+        data_to_save = np.concatenate([data_to_save,SpecRadInt])
+        
         # The spectral luminous intensity [lm sr-1 nm-1]
         # Calculate first the photopic eye response for the Wavelength vector
         photopic_eye_response = (683.002 * np.interp(Wavelengths, EyeResponse[:,0], EyeResponse[:,1])).reshape(1, len(Wavelengths))
@@ -273,63 +284,64 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
         vluminances = np.concatenate([vluminances, Luminance])
     
     vtimes = np.float64(vtimes - t0)/1e6
+    vtimes = np.concatenate([[np.nan], vtimes]) 
+    vluminances =  np.concatenate([[np.nan], vluminances]) 
     
-    data = np.vstack([vtimes, vluminances]).T
-    header = str(t0) + '\nRel.Time(s) \t  Luminance(cd/m2)'
+    data = np.vstack([vtimes, vluminances])
+       
+    data_to_save = np.hstack([data.T, data_to_save])
+    
+    header = str(t0) 
+    header += '\nFirst row correspond to the wavelength vector for the Spectral Radiant Intensity'
+    header += '\nRel.Time(s) \t  Luminance(cd/m2) \t SRI(W/nm/sr)'
+    
     folder = os.path.dirname(files[0])
-    np.savetxt(pjoin(folder, 'time-luminance.dat'), data, header = header, fmt = '%10.6f')
+    
+    np.savetxt(pjoin(folder, 'spectral_evolution.evolution'), data_to_save, header = header, fmt = '%10.6g')
+   
     return vtimes, vluminances
 
-def plot_spectral_evolution(file, t0 = None, N = 10,  path_IRF = path_IRF):
-    """Read the L0-files L0 and plot its spectra radiant intensity""" 
-    # Load calibration files
-    IRF = np.loadtxt(path_IRF, usecols = 1, unpack=True)
-    
-    
-    if t0 is None:
-        print('INFO: No t0 is provided, t0 taken from the first input file.')
-        t0 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
-        
+def plot_spectral_evolution(file, tmin = 0.0, tmax = np.inf):
+    """Read the spectral evolution-file L0 and plot its spectra radiant intensity""" 
 
-    t1 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
     # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
-    data = np.loadtxt(file, skiprows = 3)
-    aTimes = data[2:,0]
-    integration_times = data[2:,1]
-    integration_times = integration_times.reshape((len(integration_times), 1))
-    Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
-    Spectra = MeasSpectra - DarkSpectra
-    
+    data = np.loadtxt(file)
+    rtimes = data[1:,0]
+    # luminance = data[1:,1]   # I don't need it
     # The spectral radiant intensity [W sr-1 nm-1]
-    SpecRadInt = Spectra * IRF * PIXEL_SIZE / ABS_CALFACTOR / (integration_times/1000)
-    
-    # Cut innecessary wavelengths assuming the range 450 - 800 nm to more than enough
-    filt_by_wl = (Wavelengths >= WL_MIN) & (Wavelengths <= WL_MAX)
-    Wavelengths = Wavelengths[filt_by_wl]
-    SpecRadInt = SpecRadInt[:, filt_by_wl]
+    Wavelengths =  data[0,2:] 
+    SpecRadInt = data[1:,2:]   
     
     NormSpecRadInt = SpecRadInt / SpecRadInt.max(axis = -1, keepdims=True)
     
-    rtimes = [t1 + int(s*1e6) for s in aTimes]
-
-    rtimes = np.float64(rtimes - t0)/1e6
-    
-     # Filter out the times < 0, as the device would be turned off
-    ftime = (rtimes >= 0.0)
+     # Filter out the times outside the limits
+    ftime = (rtimes >= tmin) & (rtimes <=tmax)
     
     rtimes = rtimes[ftime]
     NormSpecRadInt = NormSpecRadInt[ftime, :]
-    
-    
+
+    N = len(rtimes)
+
     with sns.color_palette("coolwarm", N):
         fig, ax = plt.subplots()
+    
+    lines= []
+    
+    for i in range(N):
+        line, = ax.plot(Wavelengths, NormSpecRadInt[i,:], label = f'{rtimes[i]:.0f}')
+        lines.append(line)
         
-        for i in range(N):
-            ax.plot(Wavelengths, NormSpecRadInt[i,:], label = f'{rtimes[i]:.1f}s')
-        
-        ax.legend()
-        ax.set_xlabel('Wavelength (nm)')
-        ax.set_ylabel('Norm. EL (a.u.)')
+    lines = [lines[0], lines[int((N-1)/2)], lines[-1]]
+    ax.legend(lines, [l.get_label() for l in lines], title = 'Time (s)')
+    ax.set_xlabel('Wavelength (nm)')
+    ax.set_ylabel('Norm. EL (a.u.)')
+    ax.set_title('Spectral evolution')
+    
+    folder = os.path.dirname(file)
+    
+    namefig = pjoin(folder, f'specral-evolution_times={tmin:.0f}-{tmax:.0f}s.png')
+    
+    fig.savefig(namefig, bbox_anchor = 'tight')
         
     return rtimes, NormSpecRadInt
 
@@ -429,9 +441,6 @@ def eqe_calculator(wavelengths, angles, sri, current):
             The EQE value.
 
     """ 
-    # wavelengths: wavelength[nm]
-    # angles [°]
-    # sri: spectral radian intensity 
     
     h = 6.626e-34  # Planck constant
     c = 2.997e8;   # Speed of light
