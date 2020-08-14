@@ -81,7 +81,7 @@ plot_layout = dict(margin =  {'l': 60, 'r': 60, 'b': 60, 't': 20},\
                    xaxis2 = dict(title =  "Angle (°)",\
                             # range = [-90, 90],
                             domain=[0.7, 1]),
-                   yaxis2 = dict(title =  "Spectral Radiant Intensity (a.u.)",\
+                   yaxis2 = dict(title =  "Radiant Intensity (a.u.)",\
                             # range = [0, None],
                             anchor="x2"))
 
@@ -133,7 +133,7 @@ app.layout = html.Div(children =  [
             daq.StopButton(id='button-adquire',
                disabled = True,
 #               title = 'Adquire a single spectra',
-               buttonText = 'adquire',
+               buttonText = 'acquire',
                n_clicks = 0,
                ),
             daq.StopButton(id='button-set-bkg',
