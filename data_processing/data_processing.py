@@ -11,20 +11,8 @@ from scipy.optimize import curve_fit
 import os 
 import seaborn as sns
 from scipy.interpolate import interp1d
+from pyGonioSpectrometer.data_processing.calibration import path_IRF, path_eye_response, WL_MAX, WL_MIN, PIXEL_SIZE, ABS_CALFACTOR
 
-
-fcal = pjoin(os.path.dirname(__file__), 'calibration_files')
-# Instrument response function, 160504 ML
-path_IRF = pjoin(fcal, 'IRF_FlameBlueFiber_wLens2945K.txt')
-
-# Eye response function
-path_eye_response = pjoin(fcal, 'CIE1988photopic.txt')
-
-ABS_CALFACTOR = 7.10e6 # Calibration from 15/07/2020
-# ABS_CALFACTOR = 5.4178E6 # OLD Mattias' absolute numbers calibration factor, 170224 ML
-PIXEL_SIZE = 4e-6 # m^2, Size of a McScience substrate pixel. Equipment is designed to be used with these substrates only.
-WL_MIN = 449 # Max. wl to consider for integrations and data processing
-WL_MAX = 801 # Max. wl to consider for integrations and data processing
 
 def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, path_IRF = path_IRF, path_eye_response = path_eye_response, correct_time_drift = False):
     """
@@ -53,13 +41,13 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
         Path to the file containing the Instrument Response Function to correct the spectra. Should contain two columns, one with the wl and one with the counts. The wavelength vector should match the one correspinding to the experimental data. The default is defined with the path_IRF variable when loading the module.
         
     path_eye_response: str or path, optional
-        Path to the file containing the Eye Response Fucntion to correct the spectra. Should contain two columns, one with the wl and one with the counts. The program interpolates the vector to the correct values.
+        Path to the file containing the Eye Response Function to correct the spectra. Should contain two columns, one with the wl and one with the counts. The program interpolates the vector to the correct values.
         
     correct_time_drift: boolean, optional
         If set to True, the radiant intensity will be corrected for the temporal drift between the first measurement and the last one, based on a linear interpolation using the 3 values taken at 0°. The default is False.
         
     Returns: (could nbe improved, a bit messy)
-        iTime, IntTime, Nscans, Angles, Wavelengths, SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm, Fw_Luminance,Fw_Current_eff, EQE
+        iTime, IntTime, Nscans, L0, CE, EQE, Angles, Wavelengths, SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm
         
     """ 
     # Load calibration files
@@ -147,21 +135,20 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
     # Luminous intensity, the integral of contributions from all wavelengths [lm sr-1 = cd]
 #     print(SpecLumInt.shape, Wavelengths.shape)
     LumInt = np.trapz(SpecLumInt, Wavelengths, axis =  1)
-    L0 =  np.interp(0.0, Angles, LumInt)
-    LumIntNorm = LumInt / L0   # Normalization for the 0 deg interpolated  
+    LumIntNorm = LumInt / np.interp(0.0, Angles, LumInt)   # Normalization for the 0 deg interpolated  
          
     # Luminance, Projected area correction that gives Luminance [cd m-2]
     Luminance = LumInt / np.cos(Angles * np.pi / 180.0) / PIXEL_SIZE
-    # Normalization for the 0 deg measurements
+    # Norm. luminance,pProjected area correction
     LuminanceNorm = LumIntNorm / np.cos(Angles * np.pi / 180.0)
     
     # Forward direction luminance [cd m-2]
-    Fw_Luminance = np.interp(0.0, Angles, Luminance) # Interpolation could be improve to a quadratic kind
+    L0 = np.interp(0.0, Angles, Luminance) # Interpolation could be improve to a quadratic kind
     # Forward direction current efficacy [cd/A]
-    Fw_Current_eff = (Fw_Luminance * PIXEL_SIZE ) / current if current != None else np.nan
+    CE = (L0 * PIXEL_SIZE ) / current if current != None else np.nan
     
     # EQE calculation
-    EQE = eqe_calculator(Wavelengths,Angles, SpecRadInt, current) if current != None else np.nan
+    EQE = eqe_calculator(Wavelengths, Angles, SpecRadInt, current) if current != None else np.nan
     
     # Lambertian factor calculation
     Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot)
@@ -171,9 +158,9 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
     text += f'# ABS_CALFACTOR: {ABS_CALFACTOR:4.2e}\n'
     text += f'# angle_offset = {angle_offset:.2f}°\n'
     text += f'# I = {current*1000:.2f} mA\n' if current != None else '# Current = nan mA\n'
-    text += f'# L0 =  {Fw_Luminance:.2f} cd m-2\n'
+    text += f'# L0 =  {L0:.2f} cd m-2\n'
     text += f'# EQE =  {EQE:.2f} %\n'
-    text += f'# CE =  {Fw_Current_eff:.2f} cd A-1\n'
+    text += f'# CE =  {CE:.2f} cd A-1\n'
     text += f'# Lambertian Corr. Factor =  {Lamb_Corr_Factor:.4f}\n'
     text += str(iTime) + '# Zero timestamp\n'
     
@@ -231,9 +218,10 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
         ax.set_xlim(-90, 90)
         ax1.set_xlim(-90,90)
     
-    return iTime, IntTime, Nscans, Angles, Wavelengths,\
-            SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm,\
-            Fw_Luminance,Fw_Current_eff, EQE
+    return iTime, IntTime, Nscans, L0,CE, EQE,\
+            Angles, Wavelengths, SpecRadInt,SpecLumInt, \
+            LumInt, LumIntNorm, Luminance, LuminanceNorm
+            
 
 
 def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_eye_response, plot = False):
@@ -341,7 +329,7 @@ def plot_spectral_evolution(file, tmin = 0.0, tmax = np.inf):
     
     namefig = pjoin(folder, f'specral-evolution_times={tmin:.0f}-{tmax:.0f}s.png')
     
-    fig.savefig(namefig, bbox_anchor = 'tight')
+    fig.savefig(namefig, bbox_inches  = 'tight')
         
     return rtimes, NormSpecRadInt
 
@@ -442,9 +430,9 @@ def eqe_calculator(wavelengths, angles, sri, current):
 
     """ 
     
-    h = 6.626e-34  # Planck constant
-    c = 2.997e8;   # Speed of light
-    e = 1.602e-19  # Elementary charge
+    h = 6.626e-34  # Planck constant [SI]
+    c = 2.997e8   # Speed of light [SI]
+    e = 1.602e-19  # Elementary charge [SI]
     
     # Reshape the wavelengths vector to (1,N), for the latter integration of the wavelengths vector
     
@@ -454,7 +442,7 @@ def eqe_calculator(wavelengths, angles, sri, current):
     # Add artificially the +/- 90°
     theta = (np.hstack([-90, angles, 90])) * np.pi / 180
     
-    # Artificially adding  to a value of zero and convert  and sorting 
+    # Artificially adding  +/-90° sri to a value of zero and convert  and sorting 
     # OBS! Sorting should have been already done, consider removing
     sri = np.vstack([np.zeros((1,N)), sri, np.zeros((1,N))])
     
