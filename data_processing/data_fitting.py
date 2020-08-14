@@ -8,7 +8,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.io  import loadmat
 from scipy.interpolate import interp1d
-
+import seaborn as sns
 
 def load_simdata(file, wl_limit = None, angle_max = None):
     """
@@ -254,7 +254,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         ax1.set_xlabel('Angle (°)')
         ax2.set_xlabel('Angle (°)')
         
-        fig.savefig(file[:-4] + '_aSRI_heatmap.png', bbox_acnhor = 'tight')
+        fig.savefig(file[:-4] + '_aSRI_heatmap.png', bbox_inches = 'tight')
         
         fig, ax = plt.subplots()
         ax.plot(ipos_sim, Error_Landscape, 'o-', label = f'd = {thickness:.0f}\nmin_pos = {ipos_sim[ipos_min]:.2f}')
@@ -268,12 +268,19 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         N = len(angles_sim)
         offset = 0.25 * (N-1)
         
-        fig, ax = plt.subplots(figsize = (6,4))
+        c =  sns.cubehelix_palette(N, start=.5, rot=-.75, reverse = True)
+        fig, ax = plt.subplots(figsize = (4,4))
 
         for i in range(0,N, 1):
-            ax.plot(wl_sim, offset - i*0.25 + NormSimSRI[ipos_min][:,i], f'--C{i}')
-            ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], f'-C{i}', label = f'{angles_sim[i]:}°')
-            ax.text(450,  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°')
+            ax.plot(wl_sim, offset - i*0.25 + NormSimSRI[ipos_min][:,i], '--', color = c[i], lw  =1)
+            
+            # label = f'{angles_sim[i]:}°'
+
+            ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], '-', color = c[i], lw = 1)
+            
+            if i % 2 == 0:
+                ax.text(450,  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
+                
         ax.set_xlabel('Wavelength (nm)')
         ax.set_ylabel('SRI (a.u.)')
         ax.set_title(f'Experimental and simulated emission spectra\n dAL = {thickness}, pos = {pos_min:.2f}')
