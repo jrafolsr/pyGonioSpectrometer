@@ -115,7 +115,7 @@ class ArduinoMotorController():
                     sleep(0.01)
                 except KeyboardInterrupt:
                     break
-            print('INFO: '  + self.motor.read())
+#            print('INFO: '  + self.motor.read())
         
         return out_angle
     
@@ -137,7 +137,7 @@ class ArduinoMotorController():
             except KeyboardInterrupt:
                 break
             
-        print('INFO: '  + self.motor.read())
+#        print('INFO: '  + self.motor.read())
         sleep(0.5)
             
     def disable_shutter(self):
