@@ -11,7 +11,6 @@ from pyGonioSpectrometer.instrumentation import list_spectrometers, SpectraMeasu
 from time import sleep, time
 import numpy as np
 from datetime import datetime
-import os
 from os.path import join as pjoin
 
 SATURATION_COUNTS = 65535 # Saturation limit of the spectrometer
@@ -20,34 +19,19 @@ LOWER_LIM = 40000 # Min. number of counts allowed before incresing the integrati
 MAX_TIME = 5000 # Max. time allowed per total adquisition (number of spectra x inegration time) in ms
 #%%
 
-
-# Define folder and filename
-folder = pjoin(r'C:\Users\OPEGLAB\Documents\data\goniospectrometer')    
-filename = 'default_time-series'
-# %%
-
-# Gonio measurement
-name_motor = 'ASRL7::INSTR'
+# Define default vairables for gonio measurement
 angle_step = 5
-angle_max = 5
-
-# Define variables for the spectrometer measurements
-# Assuming there is only one spectrometer, so taking the first element
-name_spectrometer = list_spectrometers()[0]
-integration_time = 100
-n_spectra = 1
-
-
+angle_max =80
 # Define variables for the time series
 interval_luminance = 10 # interval to take luminance measurements
-interval_gonio = 300 # # interval to take gonio measurements
+interval_gonio = 30 # # interval to take gonio measurements
 
 
 def gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
+                      name_motor, name_spectrometer,\
                       angle_step = angle_step, angle_max = angle_max,\
                       interval_luminance = interval_luminance,
-                      name_motor = name_motor, name_spectrometer = name_spectrometer
                       ):
 
     # Define general variables
@@ -103,8 +87,9 @@ def gonio_time_series(filename, folder,\
             intensities = flame.get_averaged_intensities()
             write_to_file(np.nan, integration_time, intensities, path)
             
+            
             print('INFO: Opening shutter')
-            gonio.move_shutter()
+            gonio.move_shutter(delay = 0.5)
             shutter_open = True
             sleep(0.5)
             
@@ -144,18 +129,19 @@ def gonio_time_series(filename, folder,\
                 n_spectra = min(20, int(MAX_TIME / integration_time))
             
             print(f'INFO: The adquisition is set to be  {n_spectra} x {integration_time} ms') 
-            # Close the sutter as the next iteration will be the gonio measurement
+            # Close the sutter as the next step will be the gonio measurement
             print('INFO: Closing shutter')
             gonio.move_shutter()
             shutter_open = False
-            sleep(2.0)
             gonio.close()   
             flame.close()
             
-           
+            
+            sleep(5.0)
+            
             # The gonio measurement itself
             shutter_open = True
-            print(f'\n\t<<<<< INFO: Taking measurement #{k//ninterval:d} >>>>>')
+            print(f'\n\t<<<<< INFO: Taking measurement #{k:d} >>>>>')
             # Gonio measurements
             gonio_measurement(name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
@@ -179,9 +165,20 @@ def gonio_time_series(filename, folder,\
     gonio.close()
     
 if __name__ == '__main__':
+    # Define folder and filename
+    folder = pjoin(r'C:\Users\OPEGLAB\Documents\data\goniospectrometer')    
+    filename = 'default_time-series'
+    # Gonio measurement
+    name_motor = 'ASRL7::INSTR'
+    # Define variables for the spectrometer measurements
+    # Assuming there is only one spectrometer, so taking the first element
+    name_spectrometer = list_spectrometers()[0]
+    integration_time = 100
+    n_spectra = 1
+    
     gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
+                      name_motor, name_spectrometer,\
                       interval_luminance = interval_luminance,\
-                      angle_step = angle_step, angle_max = angle_max,\
-                      name_motor = name_motor, name_spectrometer = name_spectrometer
+                      angle_step = angle_step, angle_max = angle_max
                       )
