@@ -59,66 +59,18 @@ def load_simdata(file, wl_limit = None, angle_max = None):
 
     return output
 
-def load_simdata_new(file, wl_limit = None, angle_max = None):
-    """Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
-    
-    Parameters:
-    ----------
-    file: str with the path to the *.mat file containing the error landscape
-    wl_limit (opt): tuple with the lower and ipper values of the wavelengths to take
-    angle_max (opt): angle maximum to consider
-    
-    Returns:
-    output:  a dictionary structure with the fields wl, angle, ipos, dAL and data
-    
-    """
-    tdata = loadmat(file)
-    
-    wl  = tdata['wl'][0]
-    angles = tdata['angles'][0]
-    dAL = tdata['dAl'][0]
-    ipos = tdata['ipos'][0]
-    data =  tdata['data']
-    
-    if wl_limit is not None:
-        wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
-    else:
-        wl_filter = [True] * len(wl)
-    if angle_max is not None:
-        angle_filter = angles <= angle_max
-    else:
-        angle_filter = [True] * len(angles)
-        
-    wl = wl[wl_filter]
-    angles = angles[angle_filter]
-    
-    for i in range(len(ipos)):
-        for j in range(len(dAL)):
-            data[i,j] = data[i,j][wl_filter, :]
-            data[i,j] = data[i,j][:, angle_filter]
-    
-    
-    output = dict(wl  = wl,\
-                  angles = angles,\
-                  dAL = dAL,\
-                  ipos = ipos,\
-                  data =  data)
-    
-
-    return output
-
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
     """Interpolates the input (experimental sri with wl_i and angles_i to the output wl_o and angles_o and normalizes to max wl of the zero angle
         Parameters
         ----------
-        sri: 2D np.array
+        sri: 2D numpy.array
             The array with the spectral radiant intensity (wavelength as rows) for each of the collected angles (as columns). It assumes that there are 3 zero angles, as it is the output of process_data function.
-        wl_i: 1D np.array
+        wl_i: 1D numpy.array
             Array with the input wavelengths, should match the length of the first dimension of the sri.
-        angles_i: 1D np.array
+        angles_i: 1D numpy.array
             Array with the input angles, should match the length of the second dimension of the sri.    
-        wl_o: 1D np.array
+        wl_o: 1D numpy.array
             Array with the output wavelengths to which the data will be interpolated.
         angles_i: 1D np.array
              Array with the output angles to which the data will be interpolated.
@@ -162,7 +114,18 @@ def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
     return NormSRI
 
 def gci(value, vector):
-    """Get the closest index of the vector corresponding to the closest value"""
+    """
+    Get the closest index of the vector corresponding to the closest value
+    Parameters
+    ----------
+    value: float or int with the value to search
+    vector: numpy.array with the vector into which find the value
+    
+    Returns
+    -------
+    idx: the index corresponding to the closest value
+    
+    """
     # Handle exceptions in case the input parameters are out of the range
     if value > vector.max() or value < vector.min():
         raise Exception(f'The input value "{value:.0f}" is out of the range {vector.min()}-{vector.max()}')
@@ -173,6 +136,19 @@ def gci(value, vector):
 
 
 def load_sri_file(file):
+    """
+    Loads a *.sri file, the output generated from the process_data.
+    
+    Parameters
+    ----------
+    file: file path
+    
+    Returns
+    -------
+    wavelengths: numpy.array with the wavelength vector
+    angles: numpy.array with the angle vector
+    sri: numpy.array with the sprectral radiant intensity (rows/wl, columns/angles)
+    """
     temp = np.loadtxt(file)
     wavelengths = temp[2:, 0]
     angles = temp[1,1:]
@@ -188,7 +164,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         thickness: thickness of the experimental data
         simEL: dict structure with all the simulation data to compare the exp data
         weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']
-        plot: if True, it plots a colormap of theangular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter.
+        plot: if True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter.
         
         Returns
         -------
@@ -223,18 +199,23 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
     # and the rel. emitter position from x0 to x1 every dx, (n rows)
     # So, we choose the column according to the experimental thickness:
     NormSimSRI = simData[:,ithickness] # Columns are the simulated thicknesses
-
+    thickness_sim = dAL_sim[ithickness] # simulated thickness
     #     print(NormSimSRI[0].shape)
     N_pos = len(ipos_sim) 
     Error_Landscape = np.zeros(ipos_sim.shape)
 
     for i in range(N_pos):
         # Substract the exp. amd sim. data and do the mean of the abs error in both axis, wavelengths and angles
-        Error_Landscape[i] = (np.abs(iNormExpSRI - NormSimSRI[i]) * weights).mean(axis = 0).mean()
+        Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
     
     # Take the minimum error, which will give the best fit to the emitter position
+    min_error = Error_Landscape.min()
     ipos_min = Error_Landscape.argmin() # The i-th element corresponding to the min
     pos_min = ipos_sim[ipos_min] # The actual position of the emitter with the min error
+    
+    np.savetxt(file[:-4] + '.el',\
+               np.vstack([ipos_sim, Error_Landscape]).T, header = 'Rel.ipos\t Error',\
+               fmt = '%4.2f %10.6f')
     
     if plot:
         fig, [ax,ax1,ax2] = plt.subplots(ncols=3, figsize = (12,4), sharex=True, sharey=True)
@@ -257,7 +238,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         fig.savefig(file[:-4] + '_aSRI_heatmap.png', bbox_inches = 'tight')
         
         fig, ax = plt.subplots()
-        ax.plot(ipos_sim, Error_Landscape, 'o-', label = f'd = {thickness:.0f}\nmin_pos = {ipos_sim[ipos_min]:.2f}')
+        ax.plot(ipos_sim, Error_Landscape, 'o-', label = f'd = {thickness_sim:.0f}\nmin_pos = {ipos_sim[ipos_min]:.2f}\nmin_error = {min_error:.2g}')
         ax.set_xlabel('Rel. position of the emitter')
         ax.set_ylabel('$\Delta_{sim}^{meas}$')
         ax.set_title("Error landscape for emitter position")
@@ -293,7 +274,21 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
 
 def fit_thickness(file, simEL, plot = False, weights = None):
     """Finds the thickness corresponding to the minimum error using the error_landscape function.
- """
+    
+    Parameters
+    ----------
+    file: *.sri file path with the experiments data
+    simEL: dict structure with all the simulation data to compare the exp data
+    plot: if True, it plots the thickness error landscape
+    positions: which position do you want to plot
+    weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']
+    
+    Returns
+    -------
+    fitted_thickness : the thicknes giving the minimum error
+    error_pos: the error vector, corresponding the the minimim error obtained at each thickness
+    
+    """
     dAL_sim = simEL['dAL']
 
     error_pos = np.zeros(dAL_sim.shape)
@@ -313,7 +308,7 @@ def fit_thickness(file, simEL, plot = False, weights = None):
         ax.set_title("Error landscape for AL thickness")
         ax.legend()
         
-    return fitted_thickness
+    return fitted_thickness, error_pos
 
 def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     """Calculates the error with respect the experimental data assuming a linear combination of emmitters at different positions and with different weights."""   
@@ -323,14 +318,92 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     for i, w in enumerate(weights):
         lc_SimData += w * simEL_positions[i]
     
+    # lc_SimData /= lc_SimData[:,0].max()
     # Abs error
     # error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
     # Quadratic error
-    error = ((np.sqrt((exp_data - lc_SimData)**2)).mean(axis = -1)).mean(axis = -1)
+    error = ((np.sqrt((exp_data - lc_SimData) ** 2)).mean(axis = 0)).mean(axis = -1)
 #     print (error)
     
     if fitting:
         return error
     else:
         return error, lc_SimData
+
+def compare_data(file, thickness, simEL, positions):
+    """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
+        
+        Parameters
+        ----------
+        file: *.sri file path with the experiments data
+        thickness: thickness of the experimental data in [nm]
+        simEL: dict structure with all the simulation data to compare the exp data
+        positions: which position do you want to plot
+        
+        Returns
+        -------
+        iNormExpSRI: the normalized and interpolated exp angular SRI
+        ipos_sim: vector with the the emission positions return (the closest the the queried values)
+        NormSimSRI: the normalized sim SRI for the queried positions
+        
+    """
     
+    wavelengths, angles, sri = load_sri_file(file)
+    
+    wl_sim = simEL['wl']
+    angles_sim = simEL['angles']
+    dAL_sim = simEL['dAL']
+    ipos_sim = simEL['ipos']
+    simData = simEL['data']
+    
+    iNormExpSRI = interpolate_expdata(sri, wavelengths, angles, wl_sim, angles_sim)
+    
+    # Find the simulation data according to the input thickness   
+    ithickness = gci(thickness, dAL_sim)
+    
+#     print(ithickness, dAL_SIM[ithickness])
+
+    # So, we choose the column according to the experimental thickness:
+    NormSimSRI = simData[:,ithickness] # Columns are the simulated thicknesses
+    thickness_sim = dAL_sim[ithickness] # simulated thickness
+    
+    # Convert position sto a list in case only one is passed
+    if (type(positions) == int)  or type(positions) == float:
+        positions = [positions]
+        
+    # Find the indices of positions in the ipos_sim vector
+    ipositions = [gci(p, ipos_sim) for p in positions]
+    
+    print('INFO: Plotting data for', ipos_sim[ipositions])
+
+    
+    N = len(angles_sim)
+    offset = 0.25 * (N-1)
+    
+    c =  sns.cubehelix_palette(N, start=.5, rot=-.75, reverse = True)
+    
+    for k in ipositions:
+        fig, ax = plt.subplots(figsize = (4,4))
+    
+        for i in range(0,N, 1):
+            kwargs = dict(color = c[i],lw  = 1)
+            
+            pos = ipos_sim[k]
+            ax.plot(wl_sim, offset - i*0.25 + NormSimSRI[k][:,i],'--',  **kwargs)
+            
+            # label = f'{angles_sim[i]:}°'
+    
+            ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], ls = '-', **kwargs)
+            
+            if i % 2 == 0:
+                ax.text(450,  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
+                
+        ax.set_xlabel('Wavelength (nm)')
+        ax.yaxis.set_ticklabels([])
+        ax.set_ylabel('SRI (a.u.)')
+        ax.set_title('d$_{AL} = $' + f'{thickness:.0f} ({thickness_sim:.0f}) nm, ' + '$\delta_{pos} = $' + f'{pos:.2f}')
+
+        
+        fig.savefig(file[:-4] + f'_comparison_delta={pos:.02f}.png', bbox_inches = 'tight')
+        
+    return iNormExpSRI, ipos_sim[ipositions], NormSimSRI[ipositions]
