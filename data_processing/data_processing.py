@@ -104,6 +104,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
             ax.set_ylabel('Rel. change radiant intensity (%)')
             ax.set_title('Time stability of forward angle')
             ax.legend()
+            fig.savefig(file[:-4] + '_time-drift.png', bbox_inches = 'tight')
          
     # Get the indices that will sort the data based on angles and sort the data
     isort =  Angles.argsort() 
@@ -151,7 +152,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
     EQE = eqe_calculator(Wavelengths, Angles, SpecRadInt, current) if current != None else np.nan
     
     # Lambertian factor calculation
-    Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot)
+    Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot, file_id = file[:-4])
     
     text = f'# IRF_file: {path_IRF:s}\n'
     text += f'# correct_time_drift: {correct_time_drift}\n'
@@ -217,6 +218,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
         ax1.set_xlabel('Angle (°)')
         ax.set_xlim(-90, 90)
         ax1.set_xlim(-90,90)
+        fig.savefig(file[:-4] + '_map.png', bbox_inches = 'tight')
     
     return iTime, IntTime, Nscans, L0,CE, EQE,\
             Angles, Wavelengths, SpecRadInt,SpecLumInt, \
@@ -244,9 +246,20 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
         # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
         data = np.loadtxt(file, skiprows = 3)
         aTimes = data[2:,0]
-        integration_times = data[2:,1]
-        integration_times = integration_times.reshape((len(integration_times), 1))
-        Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
+        
+        # Distinguish the reading mode between a L0 (forward luminance file) and the gonio file (where I take only the 0 angle measurements (0, middle and last))
+        if file[-6:] == 'L0.dat':
+            integration_times = data[2:,1]
+            integration_times = integration_times.reshape((len(integration_times), 1))
+            Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
+        else:
+            integration_times = np.loadtxt(file, skiprows = 1, max_rows = 1)
+            Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
+            filter_vector = [0, int((aTimes.shape[0]-1)/2), -1]
+            MeasSpectra = MeasSpectra[filter_vector, :]
+            aTimes = aTimes[filter_vector]
+        
+
         Spectra = MeasSpectra - DarkSpectra
         
         # The spectral radiant intensity [W sr-1 nm-1]
@@ -289,7 +302,7 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
    
     return vtimes, vluminances
 
-def plot_spectral_evolution(file, tmin = 0.0, tmax = np.inf):
+def plot_spectral_evolution(file, tmin = 0.0, tmax = np.inf, times = None, path = None, title = None):
     """Read the spectral evolution-file L0 and plot its spectra radiant intensity""" 
 
     # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
@@ -307,29 +320,44 @@ def plot_spectral_evolution(file, tmin = 0.0, tmax = np.inf):
     
     rtimes = rtimes[ftime]
     NormSpecRadInt = NormSpecRadInt[ftime, :]
-
-    N = len(rtimes)
-
+    
+    
+    
+    # Second filter for specific times
+    ftime = []
+    if times is not None:
+        for t in times:
+            ftime.append(np.abs(rtimes - t).argmin())
+        rtimes = rtimes[ftime]
+        NormSpecRadInt = NormSpecRadInt[ftime, :]
+        
+    N = len(rtimes)  
+    
     with sns.color_palette("coolwarm", N):
         fig, ax = plt.subplots()
     
     lines= []
     
     for i in range(N):
-        line, = ax.plot(Wavelengths, NormSpecRadInt[i,:], label = f'{rtimes[i]:.0f}')
+        line, = ax.plot(Wavelengths, NormSpecRadInt[i,:], label = f'{rtimes[i]/60:.1f}')
         lines.append(line)
+    
+    if times is None:  
+        lines = [lines[0], lines[int((N-1)/2)], lines[-1]]
         
-    lines = [lines[0], lines[int((N-1)/2)], lines[-1]]
-    ax.legend(lines, [l.get_label() for l in lines], title = 'Time (s)')
+    ax.legend(lines, [l.get_label() for l in lines], title = 'Time (min)')
     ax.set_xlabel('Wavelength (nm)')
     ax.set_ylabel('Norm. EL (a.u.)')
-    ax.set_title('Spectral evolution')
     
-    folder = os.path.dirname(file)
+    if title is None:
+        ax.set_title('Spectral evolution')
+    else:
+        ax.set_title(title)
+    if path is None:
+        folder = os.path.dirname(file)
+        path = pjoin(folder, f'spectral-evolution_times={tmin:.0f}-{tmax:.0f}s.png')
     
-    namefig = pjoin(folder, f'specral-evolution_times={tmin:.0f}-{tmax:.0f}s.png')
-    
-    fig.savefig(namefig, bbox_inches  = 'tight')
+    fig.savefig(path, bbox_inches  = 'tight')
         
     return rtimes, NormSpecRadInt
 
@@ -379,26 +407,33 @@ def find_symmetry(wavelengths, angles, spectra, plot = False):
     return angle_offset
 
 
-def lambertian_correction_factor(angle, Iph, plot = False):
+def lambertian_correction_factor(angle, Iph, plot = False, file_id = 'lambertian_correction_factor'):
     """
     Calculates the Lambertian correction factor, see Lindh's work.
     
     angles: vector with the angles
     Iph: normalized luminous intensity
     """
-    # First, artificially add the -90 and 90° values, with value zero
-    angle = (np.hstack([-90, angle, 90])) * np.pi / 180
-    Iph = np.hstack([0,Iph,0])
+    # First, artificially add the -90 and 90° values, with value zero and average the zeros (as there are three)
+    N = int((len(angle) - 1) / 2)
+    neg_a = slice(0,N-1)
+    zero_a = slice(N-1, N+2)
+    pos_a = slice(N+2,None)
+
+    angle = (np.hstack([-90, angle[neg_a], angle[zero_a].mean(), angle[pos_a], 90])) * np.pi / 180
+
+    Iph = np.hstack([0,Iph[neg_a], Iph[zero_a].mean(), Iph[pos_a],0])
     # It is assumeed that the angles vector is sorted
     
-    # Interpolate the data (can be improved with quadratic interpolation)
+    # Interpolate the data (can be improved with quadratic interpolation) DONE
     iangle = np.linspace(-np.pi/2, np.pi/2, 90)
-    iIph = np.interp(iangle, angle, Iph)
+    f = interp1d(angle, Iph, 'quadratic')
+    iIph = f(iangle)
        
     # Calculate the lambertian correction factor for the positive angles and negative angle
     # As a quick workaround, take the abs of the integrand and divide by two
     # OBS! Double check that.
-    Lambertian_CorrFact= 2 * np.trapz(np.abs(iIph * np.sin(iangle)), iangle) / 2
+    Lambertian_CorrFact = 2 * np.trapz(np.abs(iIph * np.sin(iangle)), iangle) / 2
 
     if plot:
         fig, ax = plt.subplots()
@@ -407,6 +442,7 @@ def lambertian_correction_factor(angle, Iph, plot = False):
         ax.set_xlabel('Angle (°)')
         ax.set_ylabel('Norm. luminous intensity (a.u.)')
         ax.set_title('Comparison with Lambertian emitter')
+        fig.savefig(file_id + '_lambertianCF.png', bbox_inches = 'tight')
         
     return Lambertian_CorrFact
 
