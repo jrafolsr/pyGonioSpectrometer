@@ -83,20 +83,20 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False, pa
         # Get the radiant intensity 
         zero_ri = np.trapz(zero_spectra, Wavelengths, axis =  1)
         # Get the interpolation function from the interp1d function
-        fdrift = interp1d(vTimes[slicing], zero_ri/zero_ri[0], kind = 'linear')
+        fdrift = interp1d(vTimes[slicing], zero_ri/zero_ri[1], kind = 'linear')
         
-        uncorrected = np.trapz(Spectra*IRF, Wavelengths, axis =  1) / zero_ri[0] *100
+        uncorrected = np.trapz(Spectra*IRF, Wavelengths, axis =  1) / zero_ri[1] *100
         
         # Correct the spectra using the interpolation function
         Spectra /= fdrift(vTimes).reshape((len(vTimes), 1))
         
-        corrected = np.trapz(Spectra*IRF, Wavelengths, axis =  1) / zero_ri[0] *100
+        corrected = np.trapz(Spectra*IRF, Wavelengths, axis =  1) / zero_ri[1] *100
         
         print('INFO: Data has been corrected by the time drift derived from the 0° data')
         # Plot the report if asked
         if plot:
             fig, ax = plt.subplots()
-            ax.plot(vTimes[slicing], zero_ri/zero_ri[0] * 100, 'oC0', label  = 'I0 evolution')
+            ax.plot(vTimes[slicing], zero_ri/zero_ri[1] * 100, 'oC0', label  = 'I0 evolution')
             ax.plot(vTimes, fdrift(vTimes) * 100, '--C0', label = 'interpolation')
             ax.plot(vTimes, uncorrected, 'xC0', label = 'uncorrected')
             ax.plot(vTimes, corrected, '.C2', label = 'corrected')
