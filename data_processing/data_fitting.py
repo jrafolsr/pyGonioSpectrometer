@@ -330,7 +330,7 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     else:
         return error, lc_SimData
 
-def compare_data(file, thickness, simEL, positions):
+def compare_data(file, thickness, simEL, positions, fname = None):
     """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
         
         Parameters
@@ -401,9 +401,13 @@ def compare_data(file, thickness, simEL, positions):
         ax.set_xlabel('Wavelength (nm)')
         ax.yaxis.set_ticklabels([])
         ax.set_ylabel('SRI (a.u.)')
-        ax.set_title('d$_{AL} = $' + f'{thickness:.0f} ({thickness_sim:.0f}) nm, ' + '$\delta_{pos} = $' + f'{pos:.2f}')
-
         
-        fig.savefig(file[:-4] + f'_comparison_delta={pos:.02f}.png', bbox_inches = 'tight')
+        text = 'd$_{AL} = $' + f'{thickness:.0f} ({thickness_sim}) nm\n'+'$\delta_{pos} = $' +f'{pos:.2f}'
+        ax.text(0.98,0.98, text, va = 'top', ha = 'right', transform=ax.transAxes, fontsize = 'small')
+        
+        if fname is None:
+            fname = file[:-4] 
+            
+        fig.savefig(fname + f'_comparison_delta={pos:.02f}.png', bbox_inches = 'tight')
         
     return iNormExpSRI, ipos_sim[ipositions], NormSimSRI[ipositions]
