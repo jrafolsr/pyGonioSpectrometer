@@ -9,8 +9,9 @@ from matplotlib import pyplot as plt
 from scipy.io  import loadmat
 from scipy.interpolate import interp1d
 import seaborn as sns
+from .data_processing import load_sri_file
 
-def load_simdata(file, wl_limit = None, angle_max = None):
+def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
     """
     Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
     
@@ -26,11 +27,17 @@ def load_simdata(file, wl_limit = None, angle_max = None):
     """
     tdata = loadmat(file)
     
-    wl  = tdata['wl_q'][0]
-    angles = tdata['angle_q'][0]
-    dAL = tdata['dAL_sim'][0]
-    ipos = tdata['ipos_sim'][0]
+    wl  = tdata['wl_q'][0].astype(np.float)
+    angles = tdata['angle_q'][0].astype(np.float)
+    dAL = tdata['dAL_sim'][0].astype(np.float)
+    ipos = tdata['ipos_sim'][0].astype(np.float)
     data =  tdata['qnormSpecRadInt_sim_2D']
+    
+    if pos_lim is not None:
+        imin = gci(pos_lim[0], ipos)
+        imax = gci(pos_lim[1], ipos)
+        ipos = ipos[imin:imax]
+        data = data[imin:imax, :]
     
     if wl_limit is not None:
         wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
@@ -134,26 +141,6 @@ def gci(value, vector):
        
     return idx
 
-
-def load_sri_file(file):
-    """
-    Loads a *.sri file, the output generated from the process_data.
-    
-    Parameters
-    ----------
-    file: file path
-    
-    Returns
-    -------
-    wavelengths: numpy.array with the wavelength vector
-    angles: numpy.array with the angle vector
-    sri: numpy.array with the sprectral radiant intensity (rows/wl, columns/angles)
-    """
-    temp = np.loadtxt(file)
-    wavelengths = temp[2:, 0]
-    angles = temp[1,1:]
-    sri = temp[2:, 1:]
-    return wavelengths, angles, sri
 
 def error_landscape(file, thickness, simEL, weights = None, plot = False):
     """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
@@ -302,7 +289,7 @@ def fit_thickness(file, simEL, plot = False, weights = None):
     
     if plot:
         fig, ax = plt.subplots()
-        ax.plot(dAL_sim, error_pos,'o-', label =  f'Min. Err. Thickness = {fitted_thickness} nm')
+        ax.plot(dAL_sim, error_pos,'o-', label =  f'Min. Err. Thickness = {fitted_thickness:.0f} nm')
         ax.set_xlabel("Thickness of the AL (nm)")
         ax.set_ylabel('$\Delta_{sim}^{meas}$')
         ax.set_title("Error landscape for AL thickness")
@@ -402,7 +389,7 @@ def compare_data(file, thickness, simEL, positions, fname = None):
         ax.yaxis.set_ticklabels([])
         ax.set_ylabel('SRI (a.u.)')
         
-        text = 'd$_{AL} = $' + f'{thickness:.0f} ({thickness_sim}) nm\n'+'$\delta_{pos} = $' +f'{pos:.2f}'
+        text = 'd$_{AL} = $' + f'{thickness:.0f} ({thickness_sim:.0f}) nm\n'+'$\delta_{pos} = $' +f'{pos:.2f}'
         ax.text(0.98,0.98, text, va = 'top', ha = 'right', transform=ax.transAxes, fontsize = 'small')
         
         if fname is None:
