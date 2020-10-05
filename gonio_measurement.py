@@ -18,7 +18,7 @@ frequency = 2000  # Set Frequency To 2500 Hertz
 duration = 1000  # Set Duration To 1000 ms == 1 second
 
 # Fixed parameters
-WAIT_TIME = 3
+WAIT_TIME = 1.5
 N_WAVELENGTHS = 2028
 
 
@@ -122,12 +122,12 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         gonio.move_shutter()
 
         
-        [winsound.Beep(frequency,200) for i in range (5)] # Reminder of measurement starting
+        [winsound.Beep(frequency,100) for i in range (5)] # Reminder of measurement starting
         sleep(WAIT_TIME)
         
         # Take spectra at zero
         print('>>>>>>>>>>>>>>> STEP 0 <<<<<<<<<<<<<<<')
-        print('INFO: Taking spectra at 0.00°...')
+        print('INFO: Taking spectra at 0.00°')
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, 0.0, temp, path)
@@ -153,7 +153,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         k = 0
         for k in range(n_steps):        
         
-            print(f'INFO: Taking spectra at {current_angle:.1f}°...')
+            print(f'INFO: Taking spectra at {current_angle:.1f}°')
             
 
             # Get the whole spectra (wl and I)
@@ -197,7 +197,6 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
 #        data[:,k + 4] = temp
         
         if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
-        sleep(WAIT_TIME)
         
         # Go back to zero
         back_angle = -1.0 * abs(current_angle)
@@ -207,8 +206,9 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print(f'INFO: Moved {out_angle:.1f}°. Total angle moved: {total:.1f}')
         
         # Wait longer time, as the angle is larger and take the spectra
-        sleep(WAIT_TIME)
+        sleep(WAIT_TIME * 2)
         print('INFO: Taking last 0° spectra....')
+        
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, current_angle, temp, path)
@@ -274,11 +274,11 @@ if __name__ == '__main__':
     # Define measurement variables
     folder = r'.'
     filename = 'goniomeasurement'
-    angle_step = 10
+    angle_step = 20
     angle_max = 80
     # Define variables for the spectrometer measurements
     integration_time = 100
-    n_spectra = 10
+    n_spectra = 20
     plot = True
     
     gonio_measurement(name_motor, angle_max, angle_step, name_spectrometer, integration_time, n_spectra)
