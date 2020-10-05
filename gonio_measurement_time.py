@@ -53,10 +53,10 @@ def gonio_time_series(filename, folder,\
         
         # Adaptative interval_luminance
         total_ellapsed_time = time() - time_zero
-        if total_ellapsed_time > 1200: # After 20 min, take forward luminance every min
-            interval_luminance = min(60, interval_gonio)
+        if total_ellapsed_time > 1800: # After 30 min take min, take 1 forward luminance 
+            interval_luminance = interval_gonio
         elif total_ellapsed_time > 300:  # After 2 min, take forward luminance every 30 seconds min
-            interval_luminance = 30     
+            interval_luminance = max(30, interval_luminance)   
 #            
         ninterval = interval_gonio // interval_luminance
         
