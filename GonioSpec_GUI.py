@@ -391,7 +391,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         f.write(f'{Nspectra:d} # Number of spectra taken\n')
               
     
-    
+    print('INFO: Measurement STARTED!')
     Beep(3000, 250)
     # Getting the wavelength vector
     WAVELENGTHS = flame.get_wavelengths()
@@ -400,7 +400,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     write_to_file(time() - start_time, np.nan, WAVELENGTHS, path)
     
     # Take the dark spectra at zero, assuming shutter closed
-    print('INFO: Taking dark spectra....')
+    print('\tINFO: Taking dark spectra')
     temp = flame.get_averaged_intensities()
     flame.set_background(temp)
     TRACES[0] = go.Scatter(x = WAVELENGTHS, y = temp, name = 'dark', mode = 'lines')
@@ -411,10 +411,11 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
                   
     # Open the shutter
     gonio.move_shutter()
-    Beep(3000, WAIT_TIME)
+    [Beep(2000,200) for i in range (5)] # Reminder of measurement starting
+    sleep(WAIT_TIME)
     
     # Take 1st spectra at zero
-    print('INFO: Taking 0° spectra....')
+    print('\tINFO: Taking spectra at 0°')
     temp = flame.get_averaged_intensities()
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = '0°', mode = 'lines'))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background)) 
@@ -438,7 +439,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     for k in range(n_steps):
         # Save the angle
 #        first_row[0, k + 3] = current_angle
-        print('INFO: Taking spectra....')
+        print(f'\tINFO: Taking spectra at {current_angle:.1f}°')
         temp = flame.get_averaged_intensities()
         #Warning in case of saturation
         if np.any(temp > SATURATION_COUNTS): print('WARNING: Some values are saturating...')
@@ -464,7 +465,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         
     # Take last angle spectra
 
-    print('INFO: Taking spectra....')
+    print(f'\tINFO: Taking spectra at {current_angle:.1f}°')
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
@@ -484,10 +485,10 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     current_angle -= out_angle
 
     
-    sleep(WAIT_TIME)
+    sleep(WAIT_TIME * 2)
     
     # Taking last spectra at zero
-    print('INFO: Taking last 0° spectra....')
+    print('\tINFO: Taking last spectra at  0°')
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
@@ -502,7 +503,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 
     # Close shutter
     gonio.move_shutter()
-    
+    print('INFO: Measurement DONE!')
     # Saving the data with Mattias' scheme
 #    ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
 #    data = np.vstack([first_row, data])
