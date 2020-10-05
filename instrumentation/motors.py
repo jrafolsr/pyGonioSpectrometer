@@ -120,8 +120,15 @@ class ArduinoMotorController():
         return out_angle
     
     def disable_gonio(self):
-        self.move_angle(0)
+        self.motor.write('1,0,0,0')
         self.motor.read()
+        print('INFO: Gonio motor disabled')
+        return None
+    
+    def enable_gonio(self):
+        self.motor.write('1,0,1,0')
+        self.motor.read()
+        print('INFO: Gonio motor enabled')
         return None
     
     def move_shutter(self, angle = 270, slow = True, resolution = 1, delay = None):
