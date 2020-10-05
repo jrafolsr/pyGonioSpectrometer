@@ -10,6 +10,8 @@ from scipy.io  import loadmat
 from scipy.interpolate import interp1d
 import seaborn as sns
 from .data_processing import load_sri_file
+from os.path import join as pjoin
+import os
 
 def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
     """
@@ -18,8 +20,9 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
     Parameters:
     ----------
     file: str with the path to the *.mat file containing the error landscape
-    wl_limit (opt): tuple with the lower and ipper values of the wavelengths to take
+    wl_limit (opt): tuple with the lower and upper values of the wavelengths to take
     angle_max (opt): angle maximum to consider
+    pos_lim (opt): tuple with the lower and upper values of the ipos to take
     
     Returns:
     output:  a dictionary structure with the fields wl, angle, ipos, dAL and data
@@ -31,6 +34,7 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
     angles = tdata['angle_q'][0].astype(np.float)
     dAL = tdata['dAL_sim'][0].astype(np.float)
     ipos = tdata['ipos_sim'][0].astype(np.float)
+    # The first of data is the ipos, the second is the thickness
     data =  tdata['qnormSpecRadInt_sim_2D']
     
     if pos_lim is not None:
@@ -142,7 +146,7 @@ def gci(value, vector):
     return idx
 
 
-def error_landscape(file, thickness, simEL, weights = None, plot = False):
+def error_landscape(file, thickness, simEL, weights = None, plot = False, folder = ''):
     """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
         
         Parameters
@@ -175,6 +179,11 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
     ipos_sim = simEL['ipos']
     simData = simEL['data']
     
+    # Output names
+    foutput = os.path.basename(file)[:-4]
+    if folder == '':
+        folder = os.path.dirname(file)
+    
     iNormExpSRI = interpolate_expdata(sri, wavelengths, angles, wl_sim, angles_sim)
     
     # Find the simulation data according to the input thickness   
@@ -200,7 +209,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
     ipos_min = Error_Landscape.argmin() # The i-th element corresponding to the min
     pos_min = ipos_sim[ipos_min] # The actual position of the emitter with the min error
     
-    np.savetxt(file[:-4] + '.el',\
+    np.savetxt(pjoin(folder, foutput + '.el'),\
                np.vstack([ipos_sim, Error_Landscape]).T, header = 'Rel.ipos\t Error',\
                fmt = '%4.2f %10.6f')
     
@@ -222,7 +231,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         ax1.set_xlabel('Angle (°)')
         ax2.set_xlabel('Angle (°)')
         
-        fig.savefig(file[:-4] + '_aSRI_heatmap.png', bbox_inches = 'tight')
+        fig.savefig(pjoin(folder, foutput + '_aSRI_heatmap.png'), bbox_inches = 'tight')
         
         fig, ax = plt.subplots()
         ax.plot(ipos_sim, Error_Landscape, 'o-', label = f'd = {thickness_sim:.0f}\nmin_pos = {ipos_sim[ipos_min]:.2f}\nmin_error = {min_error:.2g}')
@@ -231,7 +240,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         ax.set_title("Error landscape for emitter position")
         ax.legend()
         
-        fig.savefig(file[:-4] + '_ipos_errorlandscape.png', bbox_inches = 'tight')
+        fig.savefig(pjoin(folder, foutput + '_ipos_errorlandscape.png'), bbox_inches = 'tight')
         
         N = len(angles_sim)
         offset = 0.25 * (N-1)
@@ -254,7 +263,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False):
         ax.set_title(f'Experimental and simulated emission spectra\n dAL = {thickness}, pos = {pos_min:.2f}')
         # ax.legend()
         
-        fig.savefig(file[:-4] + '_fitting.png', bbox_inches = 'tight')
+        fig.savefig(pjoin(folder, foutput + '_fitting.png'), bbox_inches = 'tight')
         
     return Error_Landscape, pos_min, iNormExpSRI, NormSimSRI[ipos_min]
 
@@ -317,7 +326,7 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     else:
         return error, lc_SimData
 
-def compare_data(file, thickness, simEL, positions, fname = None):
+def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png'):
     """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
         
         Parameters
@@ -326,6 +335,8 @@ def compare_data(file, thickness, simEL, positions, fname = None):
         thickness: thickness of the experimental data in [nm]
         simEL: dict structure with all the simulation data to compare the exp data
         positions: which position do you want to plot
+        fname (opt): filename prefix (can be a path too). The default is None and takes the input file as prefix.
+        ext (opt): str, either '.png' or '.svg' as the figure format. The default is '.png'.
         
         Returns
         -------
@@ -395,6 +406,6 @@ def compare_data(file, thickness, simEL, positions, fname = None):
         if fname is None:
             fname = file[:-4] 
             
-        fig.savefig(fname + f'_comparison_delta={pos:.02f}.png', bbox_inches = 'tight')
+        fig.savefig(fname + f'_comparison_delta={pos:.02f}' + ext, bbox_inches = 'tight')
         
     return iNormExpSRI, ipos_sim[ipositions], NormSimSRI[ipositions]
