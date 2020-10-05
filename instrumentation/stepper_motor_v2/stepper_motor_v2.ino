@@ -97,9 +97,14 @@ void loop() {
       
       
         if (Serial.read() == '\n') {
-          if (rotation == 0)
+          if (steps == 0) /* Activate or not the gono motor*/
           {
-            resetBEDPins();// Reset the pins
+            if (rotation == 0) {
+              digitalWrite(EN, HIGH);
+            }
+            else if (rotation == 1) {
+              digitalWrite(EN, LOW);
+            }
             Serial.println("Movement finished");
           }
           else 
