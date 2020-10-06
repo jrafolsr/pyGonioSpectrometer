@@ -51,7 +51,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         Whether to disable the goniometer motor after the measruement. The default is False.
     plot: boolean, optional
         Whether to plot or not the data. It is better to set it to false for a time series measurement, otherwise one will end with to many open windows. The default it True.
-    
+
     """ 
     # Initializing the gonio and flame objects.
     
