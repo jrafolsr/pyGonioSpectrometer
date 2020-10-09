@@ -268,6 +268,86 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
     return Error_Landscape, pos_min, iNormExpSRI, NormSimSRI[ipos_min]
 
 
+def fit_forward_position(file, thickness, simEL, plot = False, folder = ''):
+    """ Calculates the error landscape for a given thickness with respect the emitter positon within the device assuming there is only the forward emission available.
+        
+        Parameters
+        ----------
+        file: file path with a *.evolution data file
+        thickness: thickness of the experimental data
+        simEL: dict structure with all the simulation data to compare the exp data
+        weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']
+        plot: if True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter.
+        
+        Returns
+        -------
+        
+        """
+    
+    data = np.loadtxt(file)
+    wl = data[0,2:]
+    times = data[2:,0]
+    tsri = data[2:,2:] 
+    
+    wl_sim = simEL['wl']
+    dAL_sim = simEL['dAL']
+    ipos_sim = simEL['ipos']
+    simData = simEL['data']
+    
+    # Output names
+    foutput = os.path.basename(file)[:-10]
+    if folder == '':
+        folder = os.path.dirname(file)
+    
+    # Normalize by the maximum (across columns, as it is the wl)
+    tsri = tsri / tsri.max(axis = 1, keepdims = True)
+    # Create an interpolation function
+    f = interp1d(wl, tsri, axis = 1, kind='linear')
+    # Interpolate to the simulated wavelengths
+    iNormExpSRI= f(wl_sim)
+
+    # Find the simulation data according to the input thickness   
+    ithickness = gci(thickness, dAL_sim)
+    
+# #     print(ithickness, dAL_SIM[ithickness])
+    # The matrix EL_SIM['qnormSpecRadInt_sim_2D'] contains the simulated data
+    # for thickness ranging 50 to 600 every 5 nm (111 columns)
+    # and the rel. emitter position from x0 to x1 every dx, (n rows)
+    # So, we choose the column according to the experimental thickness:
+    NormSimSRI = simData[:,ithickness] # Columns are the simulated thicknesses
+    thickness_sim = dAL_sim[ithickness] # simulated thickness
+    #     print(NormSimSRI[0].shape)
+    N_times = times.shape[0]
+    N_pos = ipos_sim.shape [0]
+    
+    position_w_time = np.zeros((N_times, ))
+    min_error_w_time = np.zeros((N_times, ))
+    for i in range(N_times):
+        error  = np.zeros((N_pos, ))
+        for j in range(N_pos):
+        # Substract the exp. amd sim. data and do the mean of the abs error and take the minimum value,column zero from NormSimSRI corresponds to the angle zero
+            error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
+        
+        k = error.argmin()
+        position_w_time[i] = ipos_sim[k]
+        min_error_w_time[i] = error[k]
+        # if i % 20 == 0:
+        #     fig, ax = plt.subplots()
+        #     text = f'Time = {times[i]/60:.2f} min\nd = {thickness:.0f}({thickness_sim:.0f})\n'+ '$\delta_{pos}$ = ' + f'{position_w_time[i]:.2f}'
+        #     ax.text(0.95,0.95, text, va = 'top', ha = 'right', transform=ax.transAxes)
+            # ax.plot(wl_sim, NormSimSRI[error.argmin()][:,0],f'--C{i%10}')
+            # ax.plot(wl_sim, iNormExpSRI[i,:], f'-C{i%10}')
+        
+    header =f'Simulated(experimental) thickness: {thickness:.0f}({thickness_sim:.0f}\n' + 'Time(s)\tRel.ipos\t Error'
+    np.savetxt(pjoin(folder, foutput + '+EZ.evolution'),\
+                np.vstack([times, position_w_time, min_error_w_time]).T,\
+                    header = header,\
+                    fmt = '%4.2f\t%10.6f\t%10.6f')
+            
+    return times, position_w_time, min_error_w_time
+
+
+
 def fit_thickness(file, simEL, plot = False, weights = None):
     """Finds the thickness corresponding to the minimum error using the error_landscape function.
     
