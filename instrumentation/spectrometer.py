@@ -164,7 +164,7 @@ class SpectraMeasurement():
             integration_time = min(int(upper_limit / (max_counts - noise_level) * integration_time), max_time)
             
             if integration_time * n_spectra > max_time:
-                self.n_spectra = max(1, int(max_time / integration_time))
+                n_spectra = max(1, int(max_time / integration_time))
                 
             print('INFO: Lower limit reached. Adquisition increased to: {:.0f} ms x {:d}'.format(integration_time, n_spectra))
 
