@@ -221,7 +221,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
             
 
 
-def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_eye_response, plot = False):
+def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_eye_response, plot = False, saturation_counts = 65535):
     """Read the L0-files L0 created by the setup Gonio spectrometer 3.0""" 
     # Load calibration files
     IRF = np.loadtxt(path_IRF, usecols = 1, unpack=True)
@@ -247,6 +247,18 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
             integration_times = data[2:,1]
             integration_times = integration_times.reshape((len(integration_times), 1))
             Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
+            
+            # Remove those above the saturation counts
+            ff = (MeasSpectra <= saturation_counts).all(axis = 1)
+            aTimes = aTimes[ff]
+            integration_times = integration_times[ff]
+            MeasSpectra = MeasSpectra[ff,:]
+            # Inform the user that there is some saturated spectra
+            if (ff == False).any():
+                print(f'INFO: Skiping saturated spectra in file: "{os.path.basename(file)}"')
+            # Continute with the next iteration if there is not data to process
+            if (MeasSpectra.shape[0] == 0): 
+                continue 
         else:
             integration_times = np.loadtxt(file, skiprows = 1, max_rows = 1)
             Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
@@ -254,7 +266,6 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
             MeasSpectra = MeasSpectra[filter_vector, :]
             aTimes = aTimes[filter_vector]
         
-
         Spectra = MeasSpectra - DarkSpectra
         
         # The spectral radiant intensity [W sr-1 nm-1]
