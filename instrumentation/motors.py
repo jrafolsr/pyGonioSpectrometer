@@ -10,7 +10,7 @@ It is a Python wrapper that communicates with the Arduino that controls the step
 Explanation to be improved.
 """
 import pyvisa
-from time import sleep
+from time import sleep, time
 
 
 # Some definitions
@@ -35,19 +35,20 @@ def list_ports():
 
 
 class ArduinoMotorController():
-    """AN object that controls the communication and movement of the motors via the Arduino"""
+    """An object that controls the communication and movement of the motors via the Arduino"""
     def __init__(self, port):
         self.port = port
         if port is None:
             raise Exception('ERROR: COM port not provided')
-            
+        
         self.motor = rm.open_resource(port)
-        # Clear the buffer
-        self.motor.clear()
+        
         self.motor.read_termination = '\r\n'
         self.motor.write_termination = '\n'
-        sleep(0.500)
+        # Clear the buffer
+        self.motor.clear()
 
+        sleep(0.500)
         
     def close(self):
         """Close the resource"""
@@ -115,18 +116,20 @@ class ArduinoMotorController():
                     sleep(0.01)
                 except KeyboardInterrupt:
                     break
+                
+            self.motor.clear()
 #            print('INFO: '  + self.motor.read())
         
         return out_angle
     
     def disable_gonio(self):
-        self.motor.write('1,0,0,0')
+        self.motor.write('1,-1,0,0')
         self.motor.read()
         print('INFO: Gonio motor disabled')
         return None
     
     def enable_gonio(self):
-        self.motor.write('1,0,1,0')
+        self.motor.write('1,-1,1,0')
         self.motor.read()
         print('INFO: Gonio motor enabled')
         return None
@@ -134,21 +137,31 @@ class ArduinoMotorController():
     def move_shutter(self, angle = 270, slow = True, resolution = 1, delay = None):
         steps, _, _ = self.angle2steps(angle, slow, resolution)
         step = steps[0]
+        
         if delay is not None:
             sleep(delay)
         
         self.motor.write(f'0,{step:d}')
         
         unfinished = True
+        itime = time()
         while unfinished:
             try:
                 unfinished = self.motor.bytes_in_buffer == 0
+                # Temporary solution to the shutter opening issue.
+                if (time() - itime) > 3:
+                    print('(WARNING: Failed to move shutter, trying it again)')
+                    self.motor.write(f'0,{step:d}')
+                    itime = time()
+                    
                 sleep(0.01)
             except KeyboardInterrupt:
                 break
+        self.motor.clear()
             
 #        print('INFO: '  + self.motor.read())
         sleep(0.5)
+
             
     def disable_shutter(self):
         pass

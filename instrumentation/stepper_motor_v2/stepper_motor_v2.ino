@@ -97,12 +97,12 @@ void loop() {
       
       
         if (Serial.read() == '\n') {
-          if (steps == 0) /* Activate or not the gono motor*/
+          if (steps == -1) /* Whether to enable/disable  the gonio motor*/
           {
             if (rotation == 0) {
-              digitalWrite(EN, HIGH);
+              digitalWrite(EN, HIGH); /* Disables the gonio motor */
             }
-            else if (rotation == 1) {
+            else if (rotation == 1) { /* Enables the gonio motor */
               digitalWrite(EN, LOW);
             }
             Serial.println("Movement finished");

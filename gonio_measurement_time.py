@@ -15,37 +15,65 @@ from os.path import join as pjoin
 
 SATURATION_COUNTS = 65535 # Saturation limit of the spectrometer
 UPPER_LIM = 58000 # Max. number of counts allowed before reducing the integration time
-LOWER_LIM = 40000 # Min. number of counts allowed before incresing the integration time
-MAX_TIME = 5000 # Max. time allowed per total adquisition (number of spectra x inegration time) in ms
+LOWER_LIM = 20000 # Min. number of counts allowed before incresing the integration time
+MAX_TIME = 5000 # Max. time allowed per total adquisition (number of spectra x integration time) in ms
+
 #%%
 
 # Define default vairables for gonio measurement
 angle_step = 5
-angle_max =80
+angle_max = 80
 # Define variables for the time series
 interval_luminance = 10 # interval to take luminance measurements
-interval_gonio = 30 # # interval to take gonio measurements
-
+interval_gonio = 120 # # interval to take gonio measurements
+stop_luminance_after = 3600 * 2
 
 def gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
                       name_motor, name_spectrometer,\
                       angle_step = angle_step, angle_max = angle_max,\
                       interval_luminance = interval_luminance,
-                      ):
-
-    # Define general variables
-    disable_gonio = False # Gonio always active
-    plot = False  # No plotting
+                      stop_luminance_after = stop_luminance_after):
+    """
+    Performs a time series measurement. It takes first the forward luminance every interval_luminance seconds. Every interval_gonio, it does a complete goniometer measurement (with the specified angles and step). There are a few options to control the time intervals.
     
-    # Raise error if the time to sample the spectra is shorter than the time to take it
-    if (n_spectra * integration_time/1000) >= (interval_luminance * 0.9):
+    Parameters:
+    -----------
+    filename: str, optional
+        A string containing the output filename. The default is 'gonio_measurement'.
+    folder: str, optional
+            Path, relative or absolute, to the directory where to save the data. Should exists, the program does not check if it does.
+    integration_time: int or float
+        Sets the integration time in ms.
+    n_spectra: int
+        Number of spectra that will be averaged.
+    name_motor: str
+        String containg the COM address where the motor driver is located (the Arduino). You can get the available ports by using the list_ports() function.
+    name_spectrometer: seabreeze.spectrometers.Spectrometer class
+        The spectrometer resource as the specified class. You can get it from list_spectrometers().
+    angle_step (opt): int or float
+        Angular step that the motor will perform in deg. Preferably a divisor of angle_max and integer, the program does not check for this conditions to be fullfilled. The default is 5 deg.
+    angle_max (opt): int or float
+        Maximum angle to scan with the goniometer in deg. The default is 80 deg.
+    interval_luminance (opt): int
+        Interval in seconds at which teh forward luminance will be taken. The default is 10 s.
+    interval_gonio (opt): int
+        Interval in seconds at which teh forward luminance will be taken. The default is 120 s.
+    stop_luminance_after (opt): int
+        Time in seconds at which the program will stop performing the forward luminance measurements. Passed this time, only goniometer measurement every interval_gonio will be performed. The default is 2 h (7200 s).
+    
+    """
+    
+    # Raise error if the time to sample the spectra is shorter than the interval_luminance
+    if (n_spectra * integration_time / 1000) >= (interval_luminance * 0.9):
         raise Exception('ERROR: The interval_luminance is less than 90 % of the time need to take the spectra, consider reducing n_spectra, integration_time or increasing interval_luminance')
-
-    time_zero = time() # General inital timer
     
+    # General initial timer
+    time_zero = time()
+    start_time_gonio = time() # Initialize, but does not really matter
     # Initialize counters and flags
     shutter_open = False
+    
     k = 0
     
     while True:
@@ -53,103 +81,122 @@ def gonio_time_series(filename, folder,\
         
         # Adaptative interval_luminance
         total_ellapsed_time = time() - time_zero
-        if total_ellapsed_time > 1800: # After 30 min take min, take 1 forward luminance 
-            interval_luminance = interval_gonio
-        elif total_ellapsed_time > 300:  # After 2 min, take forward luminance every 30 seconds min
+        if total_ellapsed_time > 1800: # After 30 min take spectra min
+            interval_luminance = min(interval_gonio, 60)
+        elif total_ellapsed_time > 300:  # After 5 min, take forward luminance every 30 seconds min
             interval_luminance = max(30, interval_luminance)   
 #            
-        ninterval = interval_gonio // interval_luminance
+        ninterval = int(interval_gonio // interval_luminance)
         
         try:
-            print(f'\n\t<<<<< INFO: Measuring L0  every {interval_luminance:.0f} s >>>>>')
+            
             gonio = ArduinoMotorController(name_motor)
             
-            if not gonio.motor.bytes_in_buffer == 0:
-                print(gonio.motor.read())
-                
-            flame = SpectraMeasurement(name_spectrometer, integration_time = integration_time, n_spectra = n_spectra)
+            flame = SpectraMeasurement(name_spectrometer,\
+                                       integration_time = integration_time,\
+                                       n_spectra = n_spectra)
+            # We perform only forward luminance measurements, i.e. at angle 0.
+            if total_ellapsed_time <= stop_luminance_after:
+                print(f'\n\t<<<<< INFO: Measuring L0  every {interval_luminance:.0f} s >>>>>')
+                # Timestamps for the header and filename
+                itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+                timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
+                # Initialized the inner timer for the L0 interval
+                start_luminance_adquisition = time()
+                # Path where the data will be saved
+                path = pjoin(folder, timestamp + filename + '_L0.dat')
             
-            # Timestamps for the header and filename
-            itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
-            timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
-            start_luminance_adquisition = time()
-            path = pjoin(folder, timestamp + filename + '_L0.dat')
-        
-            with open(path, 'a') as f:
-                f.write(itimestamp + ' # Timestamp at the beginning of the measurement\n')
-                f.write(f'{integration_time:.0f} # Integration time in (ms)\n')
-                f.write(f'{n_spectra} # Number of spectra taken\n')
-                f.write(f'# Rel.time\t Integration time\t Wavelengths\n')
-                
-            # Take the dark spectra at zero
-            wavelengths = flame.get_wavelengths()
-            write_to_file(np.nan, integration_time, wavelengths, path)
-            intensities = flame.get_averaged_intensities()
-            write_to_file(np.nan, integration_time, intensities, path)
-            
-            
-            print('INFO: Opening shutter')
-            gonio.move_shutter(delay = 0.5)
-            shutter_open = True
-            sleep(0.5)
-            
-            for i in range(ninterval):
-                start_time = time()
-                print(f'INFO: Taking spectra n.{i + 1: 2d} at forward luminance.')
-                
-                ellapsed_time_since_bkg = time() - start_luminance_adquisition
+                with open(path, 'a') as f:
+                    f.write(itimestamp + ' # Timestamp at the beginning of the measurement\n')
+                    f.write(f'{integration_time:.0f} # Integration time in (ms)\n')
+                    f.write(f'{n_spectra} # Number of spectra taken\n')
+                    f.write(f'# Rel.time\t Integration time\t Wavelengths\n')
+                    
+                # Take the dark spectra at zero
+                wavelengths = flame.get_wavelengths()
+                write_to_file(np.nan, integration_time, wavelengths, path)
                 intensities = flame.get_averaged_intensities()
-                            
-                write_to_file(ellapsed_time_since_bkg, integration_time, intensities, path)
-                ellapsed_time = time() - start_time
+                write_to_file(np.nan, integration_time, intensities, path)
                 
-                # Wait the amount of time specified by interval_luminance
-                while ellapsed_time < interval_luminance:
+                sleep(0.25)
+                
+                print('INFO: Opening shutter')
+                gonio.move_shutter()
+                shutter_open = True
+                sleep(0.5)
+                
+                for i in range(ninterval):
+                    print(f'INFO: Taking spectra n.{i + 1: 2d} at forward luminance.')
+                    start_time = time()
+                    
+                    ellapsed_time_since_bkg = start_time - start_luminance_adquisition
+                    
+                    intensities = flame.get_averaged_intensities()
+                                
+                    # Check for any values higher than saturation
+                    if np.any(intensities > SATURATION_COUNTS):
+                        print('! WARNING: Some values are saturating. Consider lowering the integration time.')
+                    elif intensities.max() < 10000:
+                        print('! WARNING: The max. count is less than 10000. Consider increasing the integration time')
+                    
+                    write_to_file(ellapsed_time_since_bkg, integration_time, intensities, path)
                     ellapsed_time = time() - start_time
-                    sleep(0.001)
+                    
+                    # Wait the amount of time specified by interval_luminance
+                    while ellapsed_time < interval_luminance:
+                        ellapsed_time = time() - start_time
+                        sleep(0.001)
+    
+                # Prepare for the gonio measurement.       
+    #            # Checking if the integration time needs to be increased or decreased
+                integration_time, n_spectra = flame.adjust_integration_time(max_time = MAX_TIME,\
+                                                                            lower_limit = LOWER_LIM,
+                                                                            upper_limit = UPPER_LIM)
+                
+                # Close the sutter as the next step will be the gonio measurement
+                print('INFO: Closing shutter')
+                gonio.move_shutter()
+                shutter_open = False
+                
+            # If the time is >= stop_luminance_after, skip the forward luminance measurement and just do the check to adapt the int_time
+            else:
+                ellapsed_time =  time() - start_time_gonio
+                print(f'INFO: Next gonio measurement in {ellapsed_time/60:.1f} min')                
+                # Wait the amount of time specified by gonio
+                while (time() - start_time_gonio) < interval_gonio:
+                    sleep(0.5)
+                
+                print('INFO: Self-adjusting the integration time.')
+                print('INFO: Opening shutter')
+                
+                gonio.move_shutter()
+                shutter_open = True
+                integration_time, n_spectra = flame.adjust_integration_time(max_time = MAX_TIME,\
+                                                                            lower_limit = LOWER_LIM,
+                                                                            upper_limit = UPPER_LIM)
 
-            # Prepare for the gonio measurement.       
-            # Checking if the integration time needs to be increased or decreased
-            max_counts = flame.get_intensities().max()
-            
-            if max_counts <= LOWER_LIM:
-                print('INFO: Lower limit reach, incresing integration time')
-                integration_time = min(int(UPPER_LIM / max_counts * integration_time), MAX_TIME)
-                if integration_time * n_spectra > MAX_TIME:
-                    n_spectra = max(1, int(MAX_TIME / integration_time))
-                    
-            elif max_counts >= 0.9 * SATURATION_COUNTS:
-                print('INFO: Saturation reach, decreasing integration time')
-                while max_counts >= 0.9 * SATURATION_COUNTS:
-                    integration_time *= 0.95
-                    flame.config(integration_time)
-                    max_counts = flame.get_intensities().max()
-                    
-                integration_time = max(int(integration_time), 10)
-                n_spectra = min(20, int(MAX_TIME / integration_time))
-            
-            print(f'INFO: The adquisition is set to be  {n_spectra} x {integration_time} ms') 
-            # Close the sutter as the next step will be the gonio measurement
-            print('INFO: Closing shutter')
-            gonio.move_shutter()
-            shutter_open = False
+                print('INFO: Closing shutter')
+                gonio.move_shutter()
+                shutter_open = False
+                
             gonio.close()   
             flame.close()
             
-            
-            sleep(5.0)
+            sleep(2.0)
             
             # The gonio measurement itself
             shutter_open = True
+            
             print(f'\n\t<<<<< INFO: Taking measurement #{k:d} >>>>>')
+            
             # Gonio measurements
+            start_time_gonio = time()
             gonio_measurement(name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
                       filename = filename, folder = folder,\
-                      disable_gonio = disable_gonio, plot = plot)
-            shutter_open = False
-
+                      disable_gonio = False, plot = False)
             
+            shutter_open = False
             
         except KeyboardInterrupt:
             print('INFO: Measurement interrupted by the user')
