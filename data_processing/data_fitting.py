@@ -268,7 +268,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
     return Error_Landscape, pos_min, iNormExpSRI, NormSimSRI[ipos_min]
 
 
-def fit_forward_position(file, thickness, simEL, plot = False, folder = ''):
+def fit_forward_position(file, thickness, simEL, folder = ''):
     """ Calculates the error landscape for a given thickness with respect the emitter positon within the device assuming there is only the forward emission available.
         
         Parameters
@@ -276,9 +276,7 @@ def fit_forward_position(file, thickness, simEL, plot = False, folder = ''):
         file: file path with a *.evolution data file
         thickness: thickness of the experimental data
         simEL: dict structure with all the simulation data to compare the exp data
-        weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']
-        plot: if True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter.
-        
+        weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']        
         Returns
         -------
         
@@ -335,8 +333,8 @@ def fit_forward_position(file, thickness, simEL, plot = False, folder = ''):
         #     fig, ax = plt.subplots()
         #     text = f'Time = {times[i]/60:.2f} min\nd = {thickness:.0f}({thickness_sim:.0f})\n'+ '$\delta_{pos}$ = ' + f'{position_w_time[i]:.2f}'
         #     ax.text(0.95,0.95, text, va = 'top', ha = 'right', transform=ax.transAxes)
-            # ax.plot(wl_sim, NormSimSRI[error.argmin()][:,0],f'--C{i%10}')
-            # ax.plot(wl_sim, iNormExpSRI[i,:], f'-C{i%10}')
+        #     ax.plot(wl_sim, NormSimSRI[error.argmin()][:,0],f'--C{i%10}')
+        #     ax.plot(wl_sim, iNormExpSRI[i,:], f'-C{i%10}')
         
     header =f'Simulated(experimental) thickness: {thickness:.0f}({thickness_sim:.0f}\n' + 'Time(s)\tRel.ipos\t Error'
     np.savetxt(pjoin(folder, foutput + '+EZ.evolution'),\
