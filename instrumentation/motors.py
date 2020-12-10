@@ -110,15 +110,24 @@ class ArduinoMotorController():
             self.motor.write(string2arduino)
             
             unfinished = True
+            itime = time()
             while unfinished:
                 try:
                     unfinished = self.motor.bytes_in_buffer == 0
+                    # Temporary solution in case Arduino missed the command
+                    if (time() - itime) > 5:
+                        print('(WARNING: Failed to move the gonio, trying it again)')
+                        self.motor.write(string2arduino)
+                        itime = time()    
                     sleep(0.01)
+                    
                 except KeyboardInterrupt:
                     break
                 
             self.motor.clear()
 #            print('INFO: '  + self.motor.read())
+        
+        sleep(0.25)
         
         return out_angle
     
