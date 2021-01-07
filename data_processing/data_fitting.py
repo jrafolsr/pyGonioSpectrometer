@@ -8,6 +8,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.io  import loadmat
 from scipy.interpolate import interp1d
+from scipy.optimize import least_squares
 import seaborn as sns
 from .data_processing import load_sri_file
 from os.path import join as pjoin
@@ -487,3 +488,100 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png'):
         fig.savefig(fname + f'_comparison_delta={pos:.02f}' + ext, bbox_inches = 'tight')
         
     return iNormExpSRI, ipos_sim[ipositions], NormSimSRI[ipositions]
+
+# def arbitrary_profile_fitting(input_file, model_data, thickness, step = 1, w0 = None, method = 'trf'):
+
+#     simEL = model_data
+
+#     wl_sim = simEL['wl']
+#     angle_sim = simEL['angles']
+    
+#     # Preparing the model data, only taking every n-step
+#     step = 1
+#     initial = step - 1
+#     final = -initial if initial != 0 else None
+#     slicing = slice(initial, final, step)
+#     positions_sim = simEL['ipos'][slicing]
+
+#     # loading, interpolated and normalizing hte experimental data to the simulated ql and angle vectors
+#     wl, angle, sri = load_sri_file(input_file)
+#     exp_data = interpolate_expdata(sri, wl, angle, wl_sim, angle_sim)
+    
+#     # Choose the index corresponding to the input thickness
+#     ithickness = gci(thickness, simEL['dAL'])
+#     thickness_sim = simEL['dAL'][ithickness]
+    
+#     print(f'The input thickness is {thickness:.2f}. Tghe closest modelled data corresponds to a thickness of {thickness_sim:.0f} nm\n')
+#     # Taking the index corresponding to the input thickness and the specified slice for the positions
+#     sim_data = simEL['data'][slicing, ithickness]
+    
+#     if w0 is None:
+#         w0 = np.zeros(positions_sim.shape)
+#         w0 = w0 + 1/len(w0)
+        
+
+#     res_lsq  = least_squares(min_error_profile, w0, bounds=(0, 1),\
+#                      args = (sim_data, exp_data),\
+#                          method = method ,max_nfev  = 9000,ftol = 1e-10, verbose = 1)
+
+#     w = res_lsq.x
+
+#     # Initial error
+#     error0, SimData0 = min_error_profile(w0, sim_data, exp_data, fitting = False)
+    
+#     # Profile
+#     errorf, SimDataf = min_error_profile(w, sim_data, exp_data, fitting = False)
+
+#     # Calculate the error with a single delta fit
+#     _, pos_min, _, sim_data_best_delta  = error_landscape(input_file, thickness, simEL)
+
+#     error_s, SimData_s = min_error_profile([1], [sim_data_best_delta], exp_data, fitting = False)
+
+# text =  f'Thickness is {thickness:.0f}\n'
+# text += f'Single delta position = {pos_min}\n'
+# text += f'Error with a delta = {error_s}\n' 
+# text += f'Error with profile = {errorf}\n'
+# text += f'Error with homogenous profile {error0}\n'
+
+
+# print(text)
+
+
+
+# fig, [ax, ax1] = plt.subplots(ncols=2, figsize = (10,4), gridspec_kw={'width_ratios': [1.5, 1]})
+
+# for i,a in enumerate(angles_sim):
+#     offset = (len(angles_sim) - i - 1)*0.25
+#     ax.plot(wl_sim, offset + SimData_s[:,i], ':C' + str(i%10), lw = 1)
+#     ax.plot(wl_sim, offset + SimDataf[:,i], '--C' + str(i%10), lw = 1)
+#     ax.plot(wl_sim, offset + exp_data[:,i], '-C' + str(i%10), label = f'{a:}°')
+#     ax.set_xlabel('Wavelength (nm)')
+#     ax.set_ylabel('Norm. SRI (a.u.)')
+
+#     ax.set_title('Fittings')
+# ax.legend()
+
+# ax1.set_xlabel('Rel.position of the emitter')
+# ax1.set_ylabel('Weight')
+# ax1.set_title("Fitted profile")
+# ax1.set_xlim(0,1)
+
+# ax1.bar(positions, w, width = 0.02)
+# ax1.bar(positions, w0, width = 0.005)
+# ax1.axvline(pos_min, c= 'black', ls = '--')
+# plt.subplots_adjust(wspace = 0.3)
+
+
+
+# text = '$\Delta_{\delta}$ = ' + f'{error_delta:.4g}\n' 
+# text += '$\Delta_{profile}$ = ' + f'{errorf:.4g}\n' 
+# text += '$\Delta_{h}$ = ' + f'{error0:.4g}\n' 
+
+
+# ax[2].text(0.95,0.95,text, ha = 'right', va = 'top', transform = ax[2].transAxes, fontsize = 'small')
+
+
+# name_el_file = os.path.basename(file_sri)[0:-4] + '_' +  method
+
+# fig.suptitle(f'Thickness = {thickness:.0f} nm (' + name_el_file + ')')
+# fig.savefig(pjoin(path, name_el_file.png))
