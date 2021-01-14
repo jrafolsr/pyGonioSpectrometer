@@ -12,11 +12,13 @@ from time import sleep
 
 def list_spectrometers():
     """
-    This function will list all the spectrometers availables in the system.
+    Lists all the spectrometers availables in the system.
     
-    Returns:
-    --------
-    ldevices: a list with all the devices available. Each element of the list will be a seabreeze.spectrometers.Spectrometer class. If none is available, it returns an empty list.
+    Returns
+    -------
+    ldevices: list
+        A list with all the devices available. Each element of the list will be a seabreeze.spectrometers.Spectrometer class. If none is available, it returns an empty list.
+        
     """
     ldevices = list_devices()
     if ldevices == []:
@@ -32,14 +34,40 @@ class SpectraMeasurement():
     """
     Wrapper for the seabreeze.spectrometers.Spectrometer class that helps to perform measurements, from configurating the spectrometers to return spectra averages.
     
-    Parameters:
-    -----------
-    device: seabreeze.spectrometers.Spectrometer class
+    Parameters
+    ----------
+    device : seabreeze.spectrometers.Spectrometer class
         You can get it from list_spectrometers().
-    integration_time: int or float, optional
-        Sets the integration time in ms. The default is 1 ms.
-    n_spectra: int, optional 
+    integration_time : int or float, optional
+        Sets the integration time in ms. The default is 1.
+    n_spectra : int, optional 
         Number of spectra that will be averaged when using the method get_averaged_spectra(). The default is 1.
+    
+    Attributes
+    ----------
+    spec : seabreeze.spectrometers.Spectrometer class
+    integration_time : int
+    n_spectra : int
+    wavelengths : numpy.array
+    background : numpy.array
+    intensities : numpy.array
+    correct_nonlinearity : bool
+    correct_dark_counts : bool
+    saturation_counts : int  
+    
+    Methods
+    -------
+    config(integration_time, n_spectra=1, correct_nonlinearity=True, correct_dark_counts=False)
+        Configures the measurement once initialized. 
+    get_wavelengths()
+        Returns an array with the wavelengths.
+    get_intensities()
+        Returns an array with the intensities.
+    get_averaged_intensities()
+        Returns an array with the averaged intensities over n_spectra times.
+    adjust_integration_time(max_time=5000,lower_limit=10000,upper_limit=58000,noise_level=2700)
+    Automatically adjusts the integration time and number of spectra.
+        
     """
     def __init__(self, device, integration_time = 1, n_spectra = 1):
         """Initalize all values"""
@@ -61,18 +89,19 @@ class SpectraMeasurement():
         
     def config(self, integration_time, n_spectra = 1, correct_nonlinearity = True, correct_dark_counts = False):
         """
-        Method to further configure the measurement once initialized. Initialy though to change only the integration time, although some other configuration parameters can be changed.
+        Configures the measurement once initialized. Initialy meant to change only the integration time, although some other configuration parameters can be changed.
         
-        Parameters:
-        -----------
-        integration_time: int or float
+        Parameters
+        ----------
+        integration_time : int or float
             Sets the integration time in ms.
-        n_spectra: int, optional 
+        n_spectra : int, optional 
             Number of spectra that will be averaged when using the method get_averaged_spectra(). The default is 1.
-        correct_nonlinearity: boolean, optional
-            Whether to apply or no the built-in non-linearity correction when getting the intensities. The default is True
-        correct_dark_counts: boolean, optional
-            Whether to apply or no the built-in dark counts correction when getting the intensities. The default is False
+        correct_nonlinearity : boolean, optional
+            Whether to apply or no the built-in non-linearity correction when getting the intensities. The default is True.
+        correct_dark_counts : boolean, optional
+            Whether to apply or no the built-in dark counts correction when getting the intensities. The default is False.
+        
         """
         
         self.integration_time = integration_time * 1000
@@ -83,11 +112,12 @@ class SpectraMeasurement():
         
     def get_wavelengths(self):
         """
-        Method that return the an array with the wavelengths
+       Returns an array with the wavelengths.
         
-        Returns:
-        --------
-        wavelengths: np.array with the wavelengths from the spectrometer
+        Returns
+        -------
+        wavelengths : 1D numpy.array
+            Vector with the wavelengths from the spectrometer
         
         """
         if self.wavelengths is None:
@@ -96,12 +126,14 @@ class SpectraMeasurement():
     
     def get_intensities(self):
         """
-        Method that return the an array with the intensities
+        Returns an array with the intensities.
+        ** OBS! The n_spectra does not apply here. **
         
-        Returns:
-        --------
-        intensities: np.array with the intensities from the spectrometer
-            OBS! The n_spectra does not apply here
+        Returns
+        -------
+        intensities : 1D numpy.array
+            Vector with the intensities from the spectrometer
+            
         """
         
         try:
@@ -114,11 +146,12 @@ class SpectraMeasurement():
     
     def get_averaged_intensities(self):
         """
-        Method that return the an array with the averaged intensities over n_spectra times, set by the initial configuration or the config() method
+        Returns an array with the averaged intensities over n_spectra times, set by the initial configuration or the config() method
         
-        Returns:
-        --------
-        intensities: np.array with the averaged intensities from the spectrometer
+        Returns
+        -------
+        intensities : 1D numpy.array
+            Vector with the averaged intensities from the spectrometer
 
         """
         
@@ -152,6 +185,29 @@ class SpectraMeasurement():
     def adjust_integration_time(self, max_time = 5000,\
                                 lower_limit = 10000, upper_limit = 58000,
                                 noise_level = 2700):
+        """
+        Automatically adjusts the integration time and number of spectra to an optimal value.
+        At the moment, the max n_spectra is 20. In the future it will be adjustable.
+
+        Parameters
+        ----------
+        max_time : int, optional
+            Maximum time allowed in ms, it corresponds to the integration_time * number_of_spectra. The default is 5000.
+        lower_limit : int, optional
+            Lower count limit before increasing the integration time. The default is 10000.
+        upper_limit : TYPE, optional
+            Upper count limit before decreasing the integration time.. The default is 58000.
+        noise_level : TYPE, optional
+            Noise level counts. The default is 2700.
+
+        Returns
+        -------
+        integration_time : int
+            Updated integration time.
+        n_spectra : int
+            Update number of spectra taken.
+
+        """
         # OBS! Remember I am mixing us with ms. The config function should recieved ms,
         # but the self.integration_time property is stored in us (should fix this mess...)
         

@@ -29,27 +29,27 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     """
     Performs a complete measurement for the goniospectrometer setup, by taking spectra at every specified angle, for the whole forward hemisphere.
     
-    Parameters:
-    -----------
-    name_motor: str
+    Parameters
+    ----------
+    name_motor : str
         String containg the COM address where the motor driver is located (the Arduino). You can get the available ports by using the list_ports() function.
-    angle_max: int or float
+    angle_max : int or float
         Maximum angle to scan with the goniometer in deg.
-    angle_step: int or float
+    angle_step : int or float
         Angular step that the motor will perform in deg. Preferably a divisor of angle_max and integer, the program does not check for this conditions to be fullfilled.
-    name_spectrometer: seabreeze.spectrometers.Spectrometer class
-        The spectrometr resource as the specified class. You can get it from list_spectrometers().
-    integration_time: int or float
+    name_spectrometer : seabreeze.spectrometers.Spectrometer class
+        The spectrometer resource as the specified class. You can get it from list_spectrometers().
+    integration_time : int or float
         Sets the integration time in ms.
     n_spectra: int
         Number of spectra that will be averaged.
-    filename: str, optional
+    filename : str, optional
         A string containing the output filename. The default is 'gonio_measurement'.
-    folder: str, optional
+    folder : str, optional
         Path, relative or absolute, to the directory where to save the data. Should exists, the program does not check if it does. The default is '.\'.
-    disable_gonio: boolean, optional
+    disable_gonio : boolean, optional
         Whether to disable the goniometer motor after the measruement. The default is False.
-    plot: boolean, optional
+    plot : boolean, optional
         Whether to plot or not the data. It is better to set it to false for a time series measurement, otherwise one will end with to many open windows. The default it True.
 
     """ 
@@ -140,7 +140,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         
         
         # Move to the last position
-        print(f'>>>>>>>>>>>>>>> STEP 1 <<<<<<<<<<<<<<<')
+        print('>>>>>>>>>>>>>>> STEP 1 <<<<<<<<<<<<<<<')
         out_angle = gonio.move_angle(-1.0 * angle_max)
         # Initialize the error made in each step
         error = (angle_max - out_angle)

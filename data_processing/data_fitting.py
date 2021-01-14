@@ -18,15 +18,21 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
     """
     Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
     
-    Parameters:
+    Parameters
     ----------
-    file: str with the path to the *.mat file containing the error landscape
-    wl_limit (opt): tuple with the lower and upper values of the wavelengths to take
-    angle_max (opt): angle maximum to consider
-    pos_lim (opt): tuple with the lower and upper values of the ipos to take
+    file : str or path
+        Path to the *.mat file containing the error landscape
+    wl_limit: tuple, optional
+        2-element tuple with the lower and upper values of the wavelengths to load.
+    angle_max : int or float, optional
+        Maximum angle to load.
+    pos_lim :  tuple, optional
+        2-element tuple with the lower and upper values of the simulated emission zone position to load.
     
-    Returns:
-    output:  a dictionary structure with the fields wl, angle, ipos, dAL and data
+    Returns
+    -------
+    output:  dict
+        A dictionary with the fields wl, angle, ipos, dAL and data
     
     """
     tdata = loadmat(file)
@@ -73,23 +79,26 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
 
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
-    """Interpolates the input (experimental sri with wl_i and angles_i to the output wl_o and angles_o and normalizes to max wl of the zero angle
-        Parameters
-        ----------
-        sri: 2D numpy.array
-            The array with the spectral radiant intensity (wavelength as rows) for each of the collected angles (as columns). It assumes that there are 3 zero angles, as it is the output of process_data function.
-        wl_i: 1D numpy.array
-            Array with the input wavelengths, should match the length of the first dimension of the sri.
-        angles_i: 1D numpy.array
-            Array with the input angles, should match the length of the second dimension of the sri.    
-        wl_o: 1D numpy.array
-            Array with the output wavelengths to which the data will be interpolated.
-        angles_i: 1D np.array
-             Array with the output angles to which the data will be interpolated.
-             
-        Returns:
-        --------
-        NormSRI : interpolated and normalized (to zero angles) spectral radiant intensity. It has len(wl_o) rows and len(angles_o) columns. If points outside the range are requested it will extrapole while giving a warning, it is assumed to be fine as long as it is not a large extrapolation.
+    """
+    Interpolates the input (experimental sri with wl_i and angles_i to the output wl_o and angles_o and normalizes to max wl of the zero angle
+                            
+    Parameters
+    ----------
+    sri : 2D numpy.array
+        The array with the spectral radiant intensity (wavelength as rows) for each of the collected angles (as columns). It assumes that there are 3 zero angles, as it is the output of process_data function.
+    wl_i : 1D numpy.array
+        Array with the input wavelengths, should match the length of the first dimension of the sri.
+    angles_i : 1D numpy.array
+        Array with the input angles, should match the length of the second dimension of the sri.    
+    wl_o : 1D numpy.array
+        Array with the output wavelengths to which the data will be interpolated.
+    angles_i : 1D np.array
+         Array with the output angles to which the data will be interpolated.
+         
+    Returns
+    -------
+    NormSRI : numpy.array
+        Interpolated and normalized (to zero angles) spectral radiant intensity. It has len(wl_o) rows and len(angles_o) columns. If points outside the range are requested it will extrapole while giving a warning, it is expected to be fine as long as it is not a large extrapolation.
     """
     
     # Average the zero angles, which will be the three central values
@@ -128,14 +137,18 @@ def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
 def gci(value, vector):
     """
     Get the closest index of the vector corresponding to the closest value
+    
     Parameters
     ----------
-    value: float or int with the value to search
-    vector: numpy.array with the vector into which find the value
+    value: float or int,
+        The value to search
+    vector: numpy.array,
+        Vector into which find the value
     
     Returns
     -------
-    idx: the index corresponding to the closest value
+    idx: int
+        The index corresponding to the closest queried value.
     
     """
     # Handle exceptions in case the input parameters are out of the range
@@ -148,24 +161,36 @@ def gci(value, vector):
 
 
 def error_landscape(file, thickness, simEL, weights = None, plot = False, folder = ''):
-    """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
+    """ 
+    Calculates the error landscape for a given thickness with respect the emitter positon within the device. It outputs a *.el file containing two columns: the EZ position and the error at each position.
+    
+    Parameters
+    ----------
+    file : stri or path
+        Path with the experiments data.
+    thickness : floator int
+        Thickness of the experimental data.
+    simEL : dict
+        Dictionary with all the simulation data to compare the experimental data.
+    weigths : numpy.array, optional
+        You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']. The default is None.
+    plot : bool, optional
+        If True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter. The default is False.
+    folder : str, optional
+        String containing the name of the folder into which save the outputs. The default is ''.
+    
+    Returns
+    -------
+    Error_Landscape : 1D numpy.array
+        The error for each position of the emitter, corresponding to the vector providel in simEL['ipos']
+    pos_min : float
+        The position with the minimum error.
+    iNormExpSRI : numpy.array
+        The normalized and interpolated exp angular SRI.
+    NormSimSRI[ipos_min] : numpy.array
+        The normalized sim SRI for the minimum error position.
         
-        Parameters
-        ----------
-        file: file path with the experiments data
-        thickness: thickness of the experimental data
-        simEL: dict structure with all the simulation data to compare the exp data
-        weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']
-        plot: if True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter.
-        
-        Returns
-        -------
-        Error_Landscape: the error for each position of the emitter, corresponding to the vector providel in simEL['ipos']
-        pos_min: the position with the minimum error iNormExpSRI, NormSimSRI[ipos_min]
-        iNormExpSRI: the normalized and interpolated exp angular SRI
-        NormSimSRI[ipos_min]: the normalized sim SRI for the minimum error position
-        
-        """
+    """
     
     wavelengths, angles, sri = load_sri_file(file)
     
@@ -270,18 +295,27 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
 
 
 def fit_forward_position(file, thickness, simEL, folder = ''):
-    """ Calculates the error landscape for a given thickness with respect the emitter positon within the device assuming there is only the forward emission available.
+    """
+    Calculates the error landscape for a given thickness with respect the emitter positon within the device assuming there is only the forward emission available.
         
-        Parameters
-        ----------
-        file: file path with a *.evolution data file
-        thickness: thickness of the experimental data
-        simEL: dict structure with all the simulation data to compare the exp data
-        weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']        
-        Returns
-        -------
+    Parameters
+    ----------
+    file: str path,
+        File path with a *.evolution data file.
+    thickness: float
+        Thickness of the experimental data.
+    simEL: dict,
+        Dictionary with all the simulation data to compare the exp data.
+    folder : str, optional
+        String containing the name of the folder into which save the outputs. The default is ''.
+    
+    Returns
+    -------
+    times
+    position_w_time
+    min_error_w_time
         
-        """
+    """
     
     data = np.loadtxt(file)
     wl = data[0,2:]
@@ -348,20 +382,26 @@ def fit_forward_position(file, thickness, simEL, folder = ''):
 
 
 def fit_thickness(file, simEL, plot = False, weights = None):
-    """Finds the thickness corresponding to the minimum error using the error_landscape function.
+    """
+    Finds the thickness corresponding to the minimum error using the error_landscape function.
     
     Parameters
     ----------
-    file: *.sri file path with the experiments data
-    simEL: dict structure with all the simulation data to compare the exp data
-    plot: if True, it plots the thickness error landscape
-    positions: which position do you want to plot
-    weigths: None. You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']
+    file: str or path
+        *.sri file path with the experiments data
+    simEL: dict
+        Dictionary with all the simulation data to compare the exp data.
+    plot: bool,
+        If True, it plots the thickness error landscape. The default is False.
+    weigths : numpy.array, optional
+        You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']. The default is None.
     
     Returns
     -------
-    fitted_thickness : the thicknes giving the minimum error
-    error_pos: the error vector, corresponding the the minimim error obtained at each thickness
+    fitted_thickness : float
+        The thicknes giving the minimum error.
+    error_pos: 1D numpy.array
+        The error vector, corresponding the the minimim error obtained at each thickness.   
     
     """
     dAL_sim = simEL['dAL']
@@ -386,7 +426,25 @@ def fit_thickness(file, simEL, plot = False, weights = None):
     return fitted_thickness, error_pos
 
 def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
-    """Calculates the error with respect the experimental data assuming a linear combination of emmitters at different positions and with different weights."""   
+    """
+    Calculates the error with respect the experimental data assuming a linear combination of emmitters at different positions and with different weights.
+
+    Parameters
+    ----------
+    weights : TYPE
+        DESCRIPTION.
+    simEL_positions : TYPE
+        DESCRIPTION.
+    exp_data : TYPE
+        DESCRIPTION.
+    fitting : TYPE, optional
+        DESCRIPTION. The default is True.
+
+    Returns
+    -------
+    None.
+
+    """   
     # Simulated data as a linear combination of emitters in multiple positions
     lc_SimData = np.zeros(exp_data.shape) # linear combination SimData
     
@@ -406,22 +464,32 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
         return error, lc_SimData
 
 def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png'):
-    """ Calculates the error landscape for a given thickness with respect the emitter positon within the device.
+    """
+    Generates as many plots as requested comparing the expermimental data with the simulated SRI for the given EZ positions in the parameters positions.
         
-        Parameters
-        ----------
-        file: *.sri file path with the experiments data
-        thickness: thickness of the experimental data in [nm]
-        simEL: dict structure with all the simulation data to compare the exp data
-        positions: which position do you want to plot
-        fname (opt): filename prefix (can be a path too). The default is None and takes the input file as prefix.
-        ext (opt): str, either '.png' or '.svg' as the figure format. The default is '.png'.
-        
-        Returns
-        -------
-        iNormExpSRI: the normalized and interpolated exp angular SRI
-        ipos_sim: vector with the the emission positions return (the closest the the queried values)
-        NormSimSRI: the normalized sim SRI for the queried positions
+    Parameters
+    ----------
+    file : str or path
+        Path with the experiments data.
+    thickness : floator int
+        Thickness of the experimental data.
+    simEL : dict
+        Dictionary with all the simulation data to compare the experimental data.
+    positions : list
+        List with the position do you want to plot.
+    fname : str, optional
+        Filename prefix (can be a path too). If None is passed, it takes the input file as prefix. The default is None.
+    ext : str
+        Figure file format, it accepts '.png' or '.svg'. The default is '.png'.
+    
+    Returns
+    -------
+    iNormExpSRI: numpy.array
+        The normalized and interpolated exp angular SRI
+    ipos_sim: numpy.array
+        Vector with the the emission positions return (the closest the the queried values)
+    NormSimSRI: numpy.array
+        The normalized sim SRI for the queried positions
         
     """
     

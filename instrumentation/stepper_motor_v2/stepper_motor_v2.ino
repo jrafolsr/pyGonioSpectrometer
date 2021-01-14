@@ -22,29 +22,28 @@ Example based off of demos by Brian Schmalz (designer of the Big Easy Driver).
 http://www.schmalzhaus.com/EasyDriver/Examples/EasyDriverExamples.html
 ******************************************************************************/
 //Declare pin functions on Arduino
-#define gstep 2
-#define gdir 3
-#define MS1 4
+#define gstep 2   // Step pin for the gonio motor
+#define gdir 3    // Direction pin for the shutter motor 
+#define MS1 4     // Pins to define the microstepping in the gonio motor (generally unused, can be removed for simplicity)
 #define MS2 5
 #define MS3 6
-#define EN  7
-#define sdir 8 // Direction pin for the shutter motor
-#define sstep 9 // Step pin for the shutter motor
-#define sEN 10 // Enable the stepper of the shutter
+#define EN  7     // Enable the stepper of the gonio
+#define sdir 8    // Direction pin for the shutter motor
+#define sstep 9   // Step pin for the shutter motor
+#define sEN 10    // Enable the stepper of the shutter
 
 #define DELAY 1
 
 //Declare variables for functions
-int rotation;
-int x;
+
+int x;          // Dummy int variables for the loops
 int y;
 int state;
-int steps;
-int resolution;
-int motor; // Which motor to move
-int sopen =  1; // Variable that controls if the shutter is open or not
-
-
+int steps;        // Number of steps
+int resolution;   // Step resolution
+int rotation;     // Direction to move (clockwise or counterclockwise)
+int motor;        // Motor to move
+int sopen =  1;   // Variable that tracks and controls if the shutter is open or not
 
 void setup() {
   pinMode(EN, OUTPUT);
@@ -62,16 +61,27 @@ void setup() {
   pinMode(sstep, OUTPUT);
   pinMode(sdir, OUTPUT);
 
-
-  
   resetBEDPins(); //Set step, direction, microstep and enable pins to default states
+  
   Serial.begin(9600); //Open Serial connection for debugging
   Serial.println("Motor ready");
-  
-  
 }
 
 //Main loop
+/*
+ * A self-made communication commmands have been implemented to control the Arduino through the Serial port.
+ * One of the two following string formats should be sent (ommit the brackets <> and replace the variable with appropiate value):
+    - <motor,steps>: to control the shutter motor.
+    - <motor,steps,rotation,resolution>: to control the gonio motor
+ * Variables:
+    - motor (int): takes value 0 for the shutter or 1 for the gonio.
+    - steps (int): number of steps to perform, from 0 to 9999. If -1 is passed, it will alow to enable or disable the gonio motor throught the rotation value.
+    - rotation (int): 1 to move forward (clockwise, I think, I have to check) and 2 to move in reverse. If steps = -1, rotation = 0 disables the gonio and rotation = 1 enables it.
+    - resolution (int): sets the microstepping size throught the M1-M3 pins. Can takes the values of 1 (full step), 2, 4, 8 or 16 (1/16 of step).
+                        Any other value than those, will set by default the highest resolution. 
+    
+ *  Note that the code interprets a finished command by the endline character \n, which should be included in the Serial communication for a proper operation.
+*/
 void loop() {
   
   while(Serial.available() > 0){
@@ -145,60 +155,65 @@ void MoveMotor(int steps, int rotation){
     digitalWrite(gdir, LOW); // Pull direction pin low to move "forward"
   }
   else if (rotation == 2){
-    digitalWrite(gdir, HIGH); //Pull direction pin low to move in "reverse"
+    digitalWrite(gdir, HIGH); // Pull direction pin low to move in "reverse"
   }
   
-  for(x= 0; x < steps; x++)  //Loop the stepping enough times for motion to be visible
-  {
-    digitalWrite(gstep,HIGH); //Trigger one step
-    delay(DELAY);
-    digitalWrite(gstep,LOW); //Pull step pin low so it can be triggered again
-    delay(DELAY);
-
-  }
+  for(x= 0; x < steps; x++)  // Loop for the numer of desired steps
+    {
+      digitalWrite(gstep,HIGH); //Trigger one step
+      delay(DELAY);
+      digitalWrite(gstep,LOW); //Pull step pin low so it can be triggered again
+      delay(DELAY);
+  
+    }
 }
 
-// 1/16th microstep foward mode function
+// Function to set the resolution via the M1-M3 pins
 void SetStepResolution(int resolution)
 {
   //Serial.println("Stepping at 1/16th microstep mode.");
   if (resolution == 1)
-  {
-    digitalWrite(MS1, LOW); //Pull MS1,MS2, and MS3  to set logic to 1/16th microstep resolution
-    digitalWrite(MS2, LOW);
-    digitalWrite(MS3, LOW);
-  }
+    {
+      digitalWrite(MS1, LOW); //Pull MS1,MS2, and MS3  to set logic to 1/16th microstep resolution
+      digitalWrite(MS2, LOW);
+      digitalWrite(MS3, LOW);
+    }
   else if (resolution == 2)
-  {
-    digitalWrite(MS1, HIGH); //Pull MS1,MS2, and MS3  to set logic to 1/2th microstep resolution
-    digitalWrite(MS2, LOW);
-    digitalWrite(MS3, LOW);
-  }
+    {
+      digitalWrite(MS1, HIGH); //Pull MS1,MS2, and MS3  to set logic to 1/2th microstep resolution
+      digitalWrite(MS2, LOW);
+      digitalWrite(MS3, LOW);
+    }
   else if (resolution == 4)
-  {
-    digitalWrite(MS1, LOW); //Pull MS1,MS2, and MS3  to set logic to 1/4th microstep resolution
-    digitalWrite(MS2, HIGH);
-    digitalWrite(MS3, LOW);
-  }
+    {
+      digitalWrite(MS1, LOW); //Pull MS1,MS2, and MS3  to set logic to 1/4th microstep resolution
+      digitalWrite(MS2, HIGH);
+      digitalWrite(MS3, LOW);
+    }
     else if (resolution == 8)
-  {
-    digitalWrite(MS1, HIGH); //Pull MS1,MS2, and MS3  to set logic to 1/8th microstep resolution
-    digitalWrite(MS2, HIGH);
-    digitalWrite(MS3, LOW);
-  }  
+    {
+      digitalWrite(MS1, HIGH); //Pull MS1,MS2, and MS3  to set logic to 1/8th microstep resolution
+      digitalWrite(MS2, HIGH);
+      digitalWrite(MS3, LOW);
+    }  
   else if (resolution == 16)
-  {
-    digitalWrite(MS1, HIGH); //Pull MS1,MS2, and MS3 high to set logic to 1/16th microstep resolution
-    digitalWrite(MS2, HIGH);
-    digitalWrite(MS3, HIGH);
-  }
+    {
+      digitalWrite(MS1, HIGH); //Pull MS1,MS2, and MS3 high to set logic to 1/16th microstep resolution
+      digitalWrite(MS2, HIGH);
+      digitalWrite(MS3, HIGH);
+    }
   else
-  {
-    digitalWrite(MS1, LOW); //Pull MS1,MS2, and MS3  to set logic to 1/16th microstep resolution
-    digitalWrite(MS2, LOW);
-    digitalWrite(MS3, LOW);
-  }
+    {
+      digitalWrite(MS1, LOW); //Pull MS1,MS2, and MS3  to set logic to 1/16th microstep resolution
+      digitalWrite(MS2, LOW);
+      digitalWrite(MS3, LOW);
+    }
 }
+
+/*
+ * This function controls the shutter movement and track is state (open or closed) through the variable 'opens' in order to move in one or the other direction.
+ * The stepper motor for the shutter will eventually replaced for a more simple servo/actuator with two positions.
+ */
 
 void MoveShutter(int steps){
   // Enabling the shutter motor
@@ -215,13 +230,14 @@ void MoveShutter(int steps){
     sopen = 0;
   }
   
-  for(x= 0; x < steps; x++)  // Move 90 degrees in the define direction, assuming a 1.8deg step
+  for(x= 0; x < steps; x++)  // Move 90 degrees in the defined direction, assuming a 1.8 deg step
   {
     digitalWrite(sstep,HIGH); //Trigger one step forward
     delay(DELAY);
     digitalWrite(sstep,LOW); //Pull step pin low so it can be triggered again
     delay(DELAY);
     }
+    
   delay(2000);
   // Disabling the shutter motor
   digitalWrite(sEN, HIGH);
