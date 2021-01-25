@@ -20,71 +20,66 @@ MAX_TIME = 5000 # Max. time allowed per total adquisition (number of spectra x i
 
 #%%
 
-# Define default vairables for gonio measurement
-angle_step = 5
-angle_max = 80
-# Define variables for the time series
-interval_luminance = 10 # interval to take luminance measurements
-interval_gonio = 120 # # interval to take gonio measurements
-stop_luminance_after = 3600 * 2
 
 def gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
                       name_motor, name_spectrometer,\
-                      angle_step = angle_step, angle_max = angle_max,\
-                      interval_luminance = interval_luminance,
-                      stop_luminance_after = stop_luminance_after):
+                      angle_step = 5, angle_max = 80,\
+                      interval_luminance = 10,
+                      stop_luminance_after = 7200):
     """
     Performs a time series measurement. It takes first the forward luminance every interval_luminance seconds. Every interval_gonio, it does a complete goniometer measurement (with the specified angles and step). There are a few options to control the time intervals.
     
-    Parameters:
-    -----------
-    filename: str, optional
+    Parameters
+    ----------
+    filename : str
         A string containing the output filename. The default is 'gonio_measurement'.
-    folder: str, optional
-            Path, relative or absolute, to the directory where to save the data. Should exists, the program does not check if it does.
+    folder : str
+            Path, relative or absolute, to the directory where to save the data. It should exists, the program does not check if it does.
     integration_time: int or float
         Sets the integration time in ms.
-    n_spectra: int
+    n_spectra : int
         Number of spectra that will be averaged.
-    name_motor: str
+    name_motor : str
         String containg the COM address where the motor driver is located (the Arduino). You can get the available ports by using the list_ports() function.
     name_spectrometer: seabreeze.spectrometers.Spectrometer class
         The spectrometer resource as the specified class. You can get it from list_spectrometers().
-    angle_step (opt): int or float
-        Angular step that the motor will perform in deg. Preferably a divisor of angle_max and integer, the program does not check for this conditions to be fullfilled. The default is 5 deg.
-    angle_max (opt): int or float
-        Maximum angle to scan with the goniometer in deg. The default is 80 deg.
-    interval_luminance (opt): int
+    angle_step : int or float, optional
+        Angular step that the motor will perform in degrees. Preferably a divisor of angle_max and an integer, the program does not check for these conditions to be fullfilled. The default is 5.
+    angle_max : int or float, optional
+        Maximum angle to scan with the goniometer in degrees. The default is 80.
+    interval_luminance : int, optional
         Interval in seconds at which teh forward luminance will be taken. The default is 10 s.
-    interval_gonio (opt): int
+    interval_gonio : int, optional
         Interval in seconds at which teh forward luminance will be taken. The default is 120 s.
-    stop_luminance_after (opt): int
-        Time in seconds at which the program will stop performing the forward luminance measurements. Passed this time, only goniometer measurement every interval_gonio will be performed. The default is 2 h (7200 s).
+    stop_luminance_after : int, optional
+        Time in seconds at which the program will stop performing the forward luminance measurements. Passed this time, only a goniometer measurement every interval_gonio will be performed. The default is 7200.
     
     """
     
     # Raise error if the time to sample the spectra is shorter than the interval_luminance
     if (n_spectra * integration_time / 1000) >= (interval_luminance * 0.9):
-        raise Exception('ERROR: The interval_luminance is less than 90 % of the time need to take the spectra, consider reducing n_spectra, integration_time or increasing interval_luminance')
+        raise Exception('The interval_luminance is less than 90 % of the time need to take the spectra, consider:\n 1. Reducing n_spectra or integration_time or \nor\n2. Increasing interval_luminance')
     
     # General initial timer
     time_zero = time()
     start_time_gonio = time() # Initialize, but does not really matter
-    # Initialize counters and flags
-    shutter_open = False
     
+    # Initialize counters and flags
+    shutter_open = False # Keeps track of the shutter status on the function level.
+    
+    # Loop counter
     k = 0
     
     while True:
         k += 1
         
-        # Adaptative interval_luminance
+        # Adjust the interval_luminance
         total_ellapsed_time = time() - time_zero
         if total_ellapsed_time > 1800: # After 30 min take spectra min
-            interval_luminance = min(interval_gonio, 60)
+            interval_luminance = max(interval_gonio, 60)
         elif total_ellapsed_time > 300:  # After 5 min, take forward luminance every 30 seconds min
-            interval_luminance = max(30, interval_luminance)   
+            interval_luminance = max(60, interval_luminance)   
 #            
         ninterval = int(interval_gonio // interval_luminance)
         
@@ -110,7 +105,7 @@ def gonio_time_series(filename, folder,\
                     f.write(itimestamp + ' # Timestamp at the beginning of the measurement\n')
                     f.write(f'{integration_time:.0f} # Integration time in (ms)\n')
                     f.write(f'{n_spectra} # Number of spectra taken\n')
-                    f.write(f'# Rel.time\t Integration time\t Wavelengths\n')
+                    f.write('# Rel.time\t Integration time\t Wavelengths\n')
                     
                 # Take the dark spectra at zero
                 wavelengths = flame.get_wavelengths()
@@ -222,10 +217,9 @@ if __name__ == '__main__':
     name_spectrometer = list_spectrometers()[0]
     integration_time = 100
     n_spectra = 1
+    interval_gonio = 120 # # interval to take gonio measurements
+    
     
     gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
-                      name_motor, name_spectrometer,\
-                      interval_luminance = interval_luminance,\
-                      angle_step = angle_step, angle_max = angle_max
-                      )
+                      name_motor, name_spectrometer)
