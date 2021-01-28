@@ -155,13 +155,15 @@ def gonio_time_series(filename, folder,\
                 
             # If the time is >= stop_luminance_after, skip the forward luminance measurement and just do the check to adapt the int_time
             else:
-                ellapsed_time =  time() - start_time_gonio
-                print(f'INFO: Next gonio measurement in {ellapsed_time/60:.1f} min')                
+                waiting_time =  interval_gonio - (time() - start_time_gonio)
+                print(f'INFO: Next gonio measurement in {waiting_time // 60:.0f} min {waiting_time % 60:.0f} s')  
+                
                 # Wait the amount of time specified by gonio
                 while (time() - start_time_gonio) < interval_gonio:
                     sleep(0.5)
                 
                 print('INFO: Self-adjusting the integration time.')
+                
                 print('INFO: Opening shutter')
                 
                 gonio.move_shutter()
