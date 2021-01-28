@@ -195,7 +195,7 @@ class ArduinoMotorController():
         for step, res in zip(msteps, mresolution):
             
             string2arduino = f'1,{step:d},{direction:d},{res:d}' #EXPLAIN HERE
-            print(string2arduino)
+#            print(string2arduino)
             self.motor.write(string2arduino)
             
             unfinished = True
