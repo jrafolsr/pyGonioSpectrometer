@@ -190,11 +190,12 @@ class ArduinoMotorController():
             else: direction = 0
             
         angle = abs(angle) # Makes sure the angle is always positive
-        msteps, mresolution, out_angle = self.angle2steps(angle, slow, resolution)
+        msteps, mresolution, out_angle = self.angle2steps(angle, resolution = resolution, slow = slow)
                   
         for step, res in zip(msteps, mresolution):
             
             string2arduino = f'1,{step:d},{direction:d},{res:d}' #EXPLAIN HERE
+            print(string2arduino)
             self.motor.write(string2arduino)
             
             unfinished = True
@@ -253,7 +254,7 @@ class ArduinoMotorController():
         
         """
         
-        steps, _, _ = self.angle2steps(angle, slow, resolution)
+        steps, _, _ = self.angle2steps(angle, resolution = resolution, slow = slow)
         step = steps[0]
         
         if delay is not None:
