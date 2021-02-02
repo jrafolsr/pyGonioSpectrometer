@@ -92,7 +92,7 @@ def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
         Array with the input angles, should match the length of the second dimension of the sri.    
     wl_o : 1D numpy.array
         Array with the output wavelengths to which the data will be interpolated.
-    angles_i : 1D np.array
+    angles_o : 1D np.array
          Array with the output angles to which the data will be interpolated.
          
     Returns
@@ -204,7 +204,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
     dAL_sim = simEL['dAL']
     ipos_sim = simEL['ipos']
     simData = simEL['data']
-    
+
     # Output names
     foutput = os.path.basename(file)[:-4]
     if folder == '':
