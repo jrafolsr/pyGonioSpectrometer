@@ -16,7 +16,6 @@ from os.path import join as pjoin
 SATURATION_COUNTS = 65535 # Saturation limit of the spectrometer
 UPPER_LIM = 58000 # Max. number of counts allowed before reducing the integration time
 LOWER_LIM = 20000 # Min. number of counts allowed before incresing the integration time
-MAX_TIME = 5000 # Max. time allowed per total adquisition (number of spectra x integration time) in ms
 
 #%%
 
@@ -25,8 +24,9 @@ def gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
                       name_motor, name_spectrometer,\
                       angle_step = 5, angle_max = 80,\
-                      interval_luminance = 10,
-                      stop_luminance_after = 7200):
+                      interval_luminance = 10,\
+                      stop_luminance_after = 7200,\
+                      max_time = 5):
     """
     Performs a time series measurement. It takes first the forward luminance every interval_luminance seconds. Every interval_gonio, it does a complete goniometer measurement (with the specified angles and step). There are a few options to control the time intervals.
     
@@ -54,12 +54,16 @@ def gonio_time_series(filename, folder,\
         Interval in seconds at which teh forward luminance will be taken. The default is 120 s.
     stop_luminance_after : int, optional
         Time in seconds at which the program will stop performing the forward luminance measurements. Passed this time, only a goniometer measurement every interval_gonio will be performed. The default is 7200.
-    
+    max_time : int, optional
+        Maximum time in seconds allowed per angle step (number of spectra x integration time). The default is 5000 s.
     """
     
     # Raise error if the time to sample the spectra is shorter than the interval_luminance
     if (n_spectra * integration_time / 1000) >= (interval_luminance * 0.9):
         raise Exception('The interval_luminance is less than 90 % of the time need to take the spectra, consider:\n 1. Reducing n_spectra or integration_time or \nor\n2. Increasing interval_luminance')
+        
+    # Convert max_time into milliseconds
+    MAX_TIME = int(max_time * 1000)
     
     # General initial timer
     time_zero = time()
