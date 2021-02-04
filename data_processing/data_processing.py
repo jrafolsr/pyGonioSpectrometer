@@ -559,14 +559,22 @@ def lambertian_correction_factor(angle, Iph, plot = False, file_id = 'lambertian
     # OBS! Double check that.
     Lambertian_CorrFact = 2 * np.trapz(np.abs(f(iangle) * np.sin(iangle)), iangle) / 2
 
-    if plot:
-        fig, ax = plt.subplots()
-        ax.plot(angle * 180 / np.pi, Iph,'x')
-        ax.plot(iangle * 180 / np.pi, np.cos(iangle))
-        ax.set_xlabel('Angle (°)')
-        ax.set_ylabel('Norm. luminous intensity (a.u.)')
-        ax.set_title('Comparison with Lambertian emitter')
-        fig.savefig(file_id + '_lambertianCF.png', bbox_inches = 'tight')
+    if plot:    
+        fig, ax = plt.subplots(figsize = (4,4), subplot_kw=dict(polar=True,theta_offset= np.pi/2, theta_direction = -1))
+        
+        theta = np.linspace(-np.pi/2, np.pi/2, 100)
+        
+        ax.set_thetalim(-np.pi/2,np.pi/2)
+        ax.set_thetagrids([-90,-60,-30,0,30,60,90])
+        ax.set_rticks([0,0.5,1])
+        ax.set_xlabel('Luminous intensity (norm.)', labelpad = -20)
+                 
+        ax.plot(angle, Iph, 'o', label = '$K_L = $' + f'{Lambertian_CorrFact:.2f}')
+        ax.plot(theta , np.cos(theta), '--', color = 'black', label = 'Lambertian')
+        
+        ax.legend(fontsize = 'small', bbox_to_anchor=(1, 1.05), ncol =2)
+ 
+        fig.savefig(file_id + '_angular-profile.png', bbox_inches = 'tight')
         
     return Lambertian_CorrFact
 
