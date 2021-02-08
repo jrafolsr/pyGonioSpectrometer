@@ -32,7 +32,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     Parameters
     ----------
     name_motor : str
-        String containg the COM address where the motor driver is located (the Arduino). You can get the available ports by using the list_ports() function.
+        String containing the COM address where the motor driver is located (the Arduino). You can get the available ports by using the list_ports() function.
     angle_max : int or float
         Maximum angle to scan with the goniometer in deg.
     angle_step : int or float
@@ -46,11 +46,11 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     filename : str, optional
         A string containing the output filename. The default is 'gonio_measurement'.
     folder : str, optional
-        Path, relative or absolute, to the directory where to save the data. Should exists, the program does not check if it does. The default is '.\'.
+        Path, relative or absolute, to the directory where to save the data. Should exists, the program does not check if it does. The default is '.'.
     disable_gonio : boolean, optional
         Whether to disable the goniometer motor after the measruement. The default is False.
     plot : boolean, optional
-        Whether to plot or not the data. It is better to set it to false for a time series measurement, otherwise one will end with to many open windows. The default it True.
+        Whether to plot or not the data. It is better to set it to false for a time series measurement, otherwise one will end with to many open windows. The default is True.
 
     """ 
     # Initializing the gonio and flame objects.
@@ -202,6 +202,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         back_angle = -1.0 * abs(current_angle)
         out_angle = gonio.move_angle(back_angle)
         current_angle -= out_angle
+        
         print(f'>>>>>>>>>>>>>>> STEP {k+3:d} <<<<<<<<<<<<<<<')
         print(f'INFO: Moved {out_angle:.1f}°. Total angle moved: {total:.1f}')
         
@@ -232,21 +233,31 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
 #        print('INFO: Measurement finished data saved at\n\t' + path2)
         
         if disable_gonio: gonio.disable_gonio()
-        
-        gonio.close()
-        flame.close()
-        
+               
+    
+    except KeyboardInterrupt:
+        print('INFO: The angle scan has been cancelled by the user. Going back to the zero position.')
+        if gonio != None:
+            # Go back to since the spectrogoniometer movement has been cancelled.
+            back_angle = -1.0 * abs(current_angle)           
+    
     except Exception as e:
         print(e)
+        print('INFO: Some error has ocurred during the angle scan. Going back to the zero position.')
         if gonio != None:
-            gonio.close()
-        if flame != None:
-            flame.close()
-    
+            # Go back to since some error has occurred during the gonio measurement
+            back_angle = -1.0 * abs(current_angle)
+
+    if gonio != None: 
+        gonio.close()
+    if flame != None:
+        flame.close()
+        
+        
 def plot_measurement(fig, ax, x, y, label = None):
     """
-    Function to plot the spectra given the figure and axis handlers together with the x, and y data.
-    The pause is to allow the live-plotting.
+    Plots the spectra given the figure and axis handlers together with the x, and y data.
+    The pause is needed to allow the live-plotting.
     """
     ax.plot(x,y, label = label)
     if label is not None:
@@ -255,14 +266,14 @@ def plot_measurement(fig, ax, x, y, label = None):
     
 def write_to_file(etime, angle, data, file, debug = False):
     """
-    Function that writes into a file the data taken at each gonio step. It takes as inputs the etime (ellapsed time) and angle as scalers, the data (vector) and the file (as the path where to save the data). The debug is just to print it on screen or not.
+    Writes into a file the data taken at each gonio step. It takes as inputs the etime (ellapsed time) and angle as scalers, the data (vector) and the file (as the path where to save the data). The debug is just to print it on screen or not.
     """
     t  = np.hstack((etime, angle, data))
     t = t.reshape((1, t.shape[0]))
     with open(file, 'a') as f:
        np.savetxt(f, t, fmt = '% 8.2f')
     if debug:
-        print(f'INFO: Data save at \n\t{file:s}')
+        print(f'INFO: Data saved at \n\t{file:s}')
 
     
 if __name__ == '__main__':
