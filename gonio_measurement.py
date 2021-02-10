@@ -236,22 +236,26 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
                
     
     except KeyboardInterrupt:
-        print('INFO: The angle scan has been cancelled by the user. Going back to the zero position.')
+        print('INFO: The angle-scan has been cancelled by the user. Going back to 0°.')
         if gonio != None:
             # Go back to since the spectrogoniometer movement has been cancelled.
-            back_angle = -1.0 * abs(current_angle)           
-    
+            back_angle = -1.0 * current_angle          
+            out_angle = gonio.move_angle(back_angle)
+            gonio.move_shutter()
+            
     except Exception as e:
         print(e)
-        print('INFO: Some error has ocurred during the angle scan. Going back to the zero position.')
+        print('INFO: Some error has ocurred during the angle-scan. Going back to 0°.')
         if gonio != None:
             # Go back to since some error has occurred during the gonio measurement
-            back_angle = -1.0 * abs(current_angle)
-
-    if gonio != None: 
-        gonio.close()
-    if flame != None:
-        flame.close()
+            back_angle = -1.0 * current_angle
+            out_angle = gonio.move_angle(back_angle)
+            gonio.move_shutter()
+    finally:
+        if gonio != None: 
+            gonio.close()
+        if flame != None:
+            flame.close()
         
         
 def plot_measurement(fig, ax, x, y, label = None):
