@@ -71,7 +71,7 @@ def gonio_time_series(filename, folder,\
     
     # Initialize counters and flags
     shutter_open = False # Keeps track of the shutter status on the function level.
-    
+    close_resources = True # Keeps track of the shutter status of the resources
     # Loop counter
     k = 0
     
@@ -94,6 +94,8 @@ def gonio_time_series(filename, folder,\
             flame = SpectraMeasurement(name_spectrometer,\
                                        integration_time = integration_time,\
                                        n_spectra = n_spectra)
+            close_resources = True
+            
             # We perform only forward luminance measurements, i.e. at angle 0.
             if total_ellapsed_time <= stop_luminance_after:
                 print(f'\n\t<<<<< INFO: Measuring L0  every {interval_luminance:.0f} s >>>>>')
@@ -125,7 +127,7 @@ def gonio_time_series(filename, folder,\
                 sleep(0.5)
                 
                 for i in range(ninterval):
-                    print(f'INFO: Taking spectra n.{i + 1: 2d} at forward luminance.')
+                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance.', end = '')
                     start_time = time()
                     
                     ellapsed_time_since_bkg = start_time - start_luminance_adquisition
@@ -134,9 +136,9 @@ def gonio_time_series(filename, folder,\
                                 
                     # Check for any values higher than saturation
                     if np.any(intensities > SATURATION_COUNTS):
-                        print('! WARNING: Some values are saturating. Consider lowering the integration time.')
+                        print('\n! WARNING: Some values are saturating. Consider lowering the integration time.')
                     elif intensities.max() < 10000:
-                        print('! WARNING: The max. count is less than 10000. Consider increasing the integration time')
+                        print('\n! WARNING: The max. count is less than 10000. Consider increasing the integration time')
                     
                     write_to_file(ellapsed_time_since_bkg, integration_time, intensities, path)
                     ellapsed_time = time() - start_time
@@ -145,40 +147,28 @@ def gonio_time_series(filename, folder,\
                     while ellapsed_time < interval_luminance:
                         ellapsed_time = time() - start_time
                         sleep(0.001)
-    
-                # Prepare for the gonio measurement.       
-    #            # Checking if the integration time needs to be increased or decreased
-                integration_time, n_spectra = flame.adjust_integration_time(max_time = MAX_TIME,\
-                                                                            lower_limit = LOWER_LIM,
-                                                                            upper_limit = UPPER_LIM)
-                
+                   
                 # Close the sutter as the next step will be the gonio measurement
-                print('INFO: Closing shutter')
+                print('\nINFO: Closing shutter')
                 gonio.move_shutter()
                 shutter_open = False
-                
-            # If the time is >= stop_luminance_after, skip the forward luminance measurement and just do the check to adapt the int_time
-            else:
-                waiting_time =  interval_gonio - (time() - start_time_gonio)
-                print(f'INFO: Next gonio measurement in {waiting_time // 60:.0f} min {waiting_time % 60:.0f} s')  
-                
-                # Wait the amount of time specified by gonio
-                while (time() - start_time_gonio) < interval_gonio:
-                    sleep(0.5)
-                
-                print('INFO: Self-adjusting the integration time.')
-                
-                print('INFO: Opening shutter')
-                
-                gonio.move_shutter()
-                shutter_open = True
-                integration_time, n_spectra = flame.adjust_integration_time(max_time = MAX_TIME,\
-                                                                            lower_limit = LOWER_LIM,
-                                                                            upper_limit = UPPER_LIM)
 
-                print('INFO: Closing shutter')
-                gonio.move_shutter()
-                shutter_open = False
+            # If the time is >= stop_luminance_after, skip the forward luminance measurement and just do the check to adapt the int_time
+            sleep(1.0)   
+            print('INFO: Self-adjusting the integration time.')
+            print('INFO: Opening shutter')
+            
+            gonio.move_shutter()
+            shutter_open = True
+            
+            integration_time, n_spectra = flame.adjust_integration_time(max_time = MAX_TIME,\
+                                                                        lower_limit = LOWER_LIM,
+                                                                        upper_limit = UPPER_LIM)
+
+            print('INFO: Closing shutter')
+            gonio.move_shutter()
+            shutter_open = False
+            close_resources = False
                 
             gonio.close()   
             flame.close()
@@ -199,18 +189,25 @@ def gonio_time_series(filename, folder,\
             
             shutter_open = False
             
+            # Wait the amount of time specified by gonio
+            while (time() - start_time_gonio) < interval_gonio:
+                minutes, seconds =  divmod(interval_gonio - (time() - start_time_gonio), 60)  
+                print(f'\rINFO: Next gonio measurement in {minutes:02.0f}:{seconds:02.0f}...', end = '')
+                sleep(0.5)
+            print('\n')
+            
         except KeyboardInterrupt:
-            print('INFO: Measurement interrupted by the user')
+            print('\nINFO: Measurement interrupted by the user')
             break
         except Exception as e:
             print(e)
             break
-        
-    if shutter_open:
-        gonio.move_shutter()
-        
-    flame.close()
-    gonio.close()
+        finally:
+            if shutter_open & close_resources:
+                gonio.move_shutter()
+            if close_resources:
+                flame.close()
+                gonio.close()
     
 if __name__ == '__main__':
     # Define folder and filename
