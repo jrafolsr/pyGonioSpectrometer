@@ -57,6 +57,9 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     
     gonio = None
     flame = None
+    # Initalizing some variables
+    
+    current_angle = 0.0
     
     try:
         # Creates the object that will control the steppers
