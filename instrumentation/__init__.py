@@ -5,5 +5,5 @@ Created on Fri Nov 29 16:38:13 2019
 @author: JOANRR
 """
 
-from .motors import list_ports, ArduinoMotorController
+from .motors import list_ports, ArduinoMotorController, RaspberryMotorController
 from .spectrometer import list_spectrometers, SpectraMeasurement

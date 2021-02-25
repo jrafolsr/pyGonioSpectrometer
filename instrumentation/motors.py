@@ -15,6 +15,7 @@ Explanation to be improved.
 """
 from pyvisa import ResourceManager
 from time import sleep, time
+import RPi.GPIO as gpio
 
 # Declaration of constants
 FACTOR = 1000000 # We'll be working with udeg, so the interger operations work fine
@@ -287,3 +288,471 @@ class ArduinoMotorController():
         Does nothing.
         """
         pass
+class RaspberryMotorController():
+    """
+    Creates an motor controller object assuming a Raspberry system.
+    
+    Parameters
+    ----------
+
+            
+    Attributes
+    ----------
+        pinout : 4-length tuple
+        stepPIN, directionPIN, enablePIN, shutterPIN : int
+            GPIO pin numbers to control gonio and shutter.
+        delay : float
+            Delay between stepPIn LOW/HIGH signal. Basically, the speed of the rotation.
+            
+    Methods
+    -------
+        close()
+            Clears and close the communication port.
+        angle2steps(angle, resolution = 16, slow = True)
+            Translates the desired angle to a number of steps according to the specified resolution
+        move_angle(angle, direction = None, resolution = 16)
+            Tells thgpio_functiongpio_functione gonio motor to move the specified angle.
+        enable_gonio()
+            Enables the gonio motor.
+        disable_gonio()
+            Disables the gonio motor.
+        move_shutter(angle, direction=None, resolution=16)
+            Moves the shutter. The Arduino controls and tracks in which direction should be moved.
+        
+    """
+    
+    def __init__(self, pinout = (27, 17, 16), delay = 0.1, shutter_angle = 180):
+        """
+        It assumes the shutter is closed from the beginning.
+        Parameters
+        ----------
+        pinout : 4-element tuple or list, optional
+            Tuple containing the pins as int for the motor driver in the order: stepPIN, directionPIN, enablePIN.
+            The default is (17, 27, 16).
+        delay : float, optional
+            Delay between the triggers send to the motor drivers in ms. The default is 0.1 ms.
+        shutter_angles : float
+            Angle corresponding to the open and closed position of the shutter.
+        """
+        
+        gpio.setmode(gpio.BCM)
+        
+        [gpio.setup(i, gpio.OUT) for i in pinout]
+        
+        self.pinout = pinout
+        self.stepPIN, self.dirPIN, self.enPIN = pinout
+        
+        self.delay = delay / 1000
+        self.shutter_angle = shutter_angle
+        # Initialize all the pinouts to LOW
+        [gpio.output(i, gpio.LOW) for i in self.pinout]
+        
+        # Initialize the pwm to control the shutter servo
+        self.isclosed = False
+        self.shutter_is_closed = True
+        
+        sleep(1)
+        
+    def start(self):
+        """
+        Starts the gonio in case it is closed.
+        """
+        if self.isclosed:
+            self.__init__()
+
+    def close(self):
+        """
+        Swithces off the motor driver and frees teh GPIOs
+        """
+        self.isclosed = True
+        gpio.cleanup()
+        
+       
+        
+    def angle2steps(self, angle, resolution = 16):
+        """
+        Translates the angle into steps according to the resolution. 
+        
+        If slow = False, the fastes step/resolution
+        will be calculated and it will deliver a series of commands for the arduino to perform. Nice but
+        unnecessary feature. To be simplified and replaced. I originally overkilled the functionalities for the 
+        requirements needed.
+        
+        Parameters
+        ----------
+            angle : float
+                Angle that will be converted into steps.
+            resolution : int (only 1, 2, 4, 8, 16), optional
+                The resolution of the microsteps. The default is 16 (1/16th of the step).
+            
+        Returns
+        -------
+            lsteps : list
+                List wgpio_functionith the number of steps per commthonScripts/pyGonioSpectrometer/instrumentation')
+
+In [14]: and. (To be updated to a int value once slow optional arg is removed.)
+            lresolution: list
+                List with the resolutions per command. (To be updated to a int value once slow optional arg is removed.)
+            out_angle: float
+                Calculated angle that the motor will move given by the snumber_of_steps *  microstep.
+        """
+    
+    #     print(f'Input angle: {angle:.2f}°')
+        angle = int (angle * FACTOR) # Angle to udeg and to integer, for a proper modules operation
+        
+
+        if resolution not in RESOLUTIONS:
+            raise Exception('The resolution value is not accepted. Must be one of this: 1, 2, 4, 8 or 16.')
+        
+        A_RESOLUTION = MOTOR_ASTEP / FACTOR / resolution
+#         print(f'Using a fixed step of {A_RESOLUTION:.4f}')
+        step = angle // int(A_RESOLUTION * FACTOR)
+        
+        out_angle = step * A_RESOLUTION     
+#         print(f'Output angle: {out_angle:.2f}°')
+        lsteps = [step]
+        lresolution = [resolution]
+            
+        
+        return lsteps, lresolution, out_angle
+    
+    def move_angle(self, angle, direction = None, resolution = 16):
+        """
+        Tells the goniometer to move a certain angle in the specified direction and resolution.
+        
+        Parameters
+        ----------
+        angle : float
+            Angle to move. CLoackwise if positive, counterclockwise if negative.
+        direction : int (only 0 or 1), optional
+            Move clockwise (0) or counterclockwise (1). If not specified the direction is inferred from the sign
+            of angle (prefered choice). The default is None.
+        resolution: int (only 1, 2, 4, 8, 16), optional
+            The resolution of the microsteps. The default is 16 (1/16th of the step). The default is 16.
+        
+        Returns
+        -------
+            out_angle : float
+                Calculated angle that the motor will move.
+        """
+        
+        if direction is None:
+            if angle >= 0: direction = gpio.LOW
+            else: direction = gpio.HIGH
+            
+        gpio.output(self.dirPIN, direction) # Pull the direction pin LOW/HIGH depending on the rotation 
+        sleep(0.1)
+        
+        angle = abs(angle) # Makes sure the angle is always positive for the tep calculation
+        msteps, mresolution, out_angle = self.angle2steps(angle, resolution = resolution)
+         # The list style is a remanent of old code or in case I want to implement a faster movement in teh future.
+         
+        for steps, res in zip(msteps, mresolution):
+            for i in range(steps):
+                gpio.output(self.stepPIN, gpio.HIGH)
+                sleep(self.delay)
+                gpio.output(self.stepPIN, gpio.LOW)
+                sleep(self.delay)
+        
+        return out_angle
+    
+    def disable_gonio(self):
+        """
+        Disables the gonio motor.
+        """
+        gpio.output(self.enPIN, gpio.HIGH)
+        print('INFO: Gonio motor disabled')
+        return None
+    
+    def enable_gonio(self):
+        """
+        Enables the gonio motor.
+        """
+        gpio.output(self.enPIN, gpio.LOW)
+        print('INFO: Gonio motor enabled')
+        return None
+    
+
+    def open_shutter(self):
+        """
+        Opens the shutter
+        """
+        self.move_angle(- self.shutter_angle)
+        self.shutter_is_closed = False
+        
+        print('INFO: Shutter opened.')
+        
+    def close_shutter(self):
+        """
+        Closes the shutter
+        Parameters:
+        -----------
+        open_angle : float
+            Angle at which the shutter is open.
+        """
+        self.move_angle(self.shutter_angle)
+        self.shutter_is_closed = True
+        print('INFO: Shutter closed.')
+   
+    def move_shutter (self):
+        """
+        Checks wheter the shutter is open or closed and moves it based on that.
+        """
+        if self.shutter_is_closed:
+            self.open_shutter()
+        else:
+            self.close_shutter()
+            
+            
+#class RaspberryMotorController():
+#    """
+#    Creates an motor controller object assuming a Raspberry system.
+#    
+#    Parameters
+#    ----------
+#
+#            
+#    Attributes
+#    ----------
+#        pinout : 4-length tuple
+#        stepPIN, directionPIN, enablePIN, shutterPIN : int
+#            GPIO pin numbers to control gonio and shutter.
+#        delay : float
+#            Delay between stepPIn LOW/HIGH signal. Basically, the speed of the rotation.
+#            
+#    Methods
+#    -------
+#        close()
+#            Clears and close the communication port.
+#        angle2steps(angle, resolution = 16, slow = True)
+#            Translates the desired angle to a number of steps according to the specified resolution
+#        move_angle(angle, direction = None, resolution = 16)
+#            Tells thgpio_functiongpio_functione gonio motor to move the specified angle.
+#        enable_gonio()
+#            Enables the gonio motor.
+#        disable_gonio()
+#            Disables the gonio motor.
+#        move_shutter(angle, direction=None, resolution=16)
+#            Moves the shutter. The Arduino controls and tracks in which direction should be moved.
+#        
+#    """
+#    
+#    def __init__(self, pinout = (4, 17, 27, 12), delay = 0.1, shutter_angles = (0,26)):
+#        """
+#        Parameters
+#        ----------
+#        pinout : 4-element tuple or list, optional
+#            Tuple containing the pins as int for the motor driver in the order: stepPIN, directionPIN, enablePIN, shutterPIN.
+#            The default is (4, 17, 27, 13).
+#        delay : float, optional
+#            Delay between the triggers send to the motor drivers in ms. The default is 0.1 ms.
+#        shutter_angles : 2-length tuple
+#            Angles corresponding to the open and closed position of the shutter.
+#        """
+#        
+#        gpio.setmode(gpio.BCM)
+#        
+#        [gpio.setup(i, gpio.OUT) for i in pinout]
+#        
+#        self.pinout = pinout
+#        self.stepPIN, self.dirPIN, self.enPIN, self.shutterPIN = pinout
+#        
+#        self.delay = delay / 1000
+#        
+#        # Initialize all the pinouts to LOW
+#        [gpio.output(i, gpio.LOW) for i in self.pinout]
+#        
+#        # Initialize the pwm to control the shutter servo
+#        self.pwm = gpio.PWM(self.shutterPIN, 50)
+#        
+#        self.pwm.start(0)
+#        self.isclosed = False
+#        self.open_angle, self.closed_angle = shutter_angles
+#        sleep(0.25)
+#        self.close_shutter()
+#        
+#        sleep(1)
+#        
+#    def start(self):
+#        """
+#        Starts the gonio in case it is closed.
+#        """
+#        if self.isclosed:
+#            self.__init__()
+#
+#    def close(self):
+#        """
+#        Swithces off the motor driver and frees teh GPIOs
+#        """
+#        self.close_shutter()
+#        self.isclosed = True
+#        self.disable_gonio()
+#
+#        sleep(0.25)
+#        self.pwm.stop()
+#        gpio.cleanup()
+#        
+#       
+#        
+#    def angle2steps(self, angle, resolution = 16):
+#        """
+#        Translates the angle into steps according to the resolution. 
+#        
+#        If slow = False, the fastes step/resolution
+#        will be calculated and it will deliver a series of commands for the arduino to perform. Nice but
+#        unnecessary feature. To be simplified and replaced. I originally overkilled the functionalities for the 
+#        requirements needed.
+#        
+#        Parameters
+#        ----------
+#            angle : float
+#                Angle that will be converted into steps.
+#            resolution : int (only 1, 2, 4, 8, 16), optional
+#                The resolution of the microsteps. The default is 16 (1/16th of the step).
+#            
+#        Returns
+#        -------
+#            lsteps : list
+#                List wgpio_functionith the number of steps per commthonScripts/pyGonioSpectrometer/instrumentation')
+#
+#In [14]: and. (To be updated to a int value once slow optional arg is removed.)
+#            lresolution: list
+#                List with the resolutions per command. (To be updated to a int value once slow optional arg is removed.)
+#            out_angle: float
+#                Calculated angle that the motor will move given by the snumber_of_steps *  microstep.
+#        """
+#    
+#    #     print(f'Input angle: {angle:.2f}°')
+#        angle = int (angle * FACTOR) # Angle to udeg and to integer, for a proper modules operation
+#        
+#
+#        if resolution not in RESOLUTIONS:
+#            raise Exception('The resolution value is not accepted. Must be one of this: 1, 2, 4, 8 or 16.')
+#        
+#        A_RESOLUTION = MOTOR_ASTEP / FACTOR / resolution
+##         print(f'Using a fixed step of {A_RESOLUTION:.4f}')
+#        step = angle // int(A_RESOLUTION * FACTOR)
+#        
+#        out_angle = step * A_RESOLUTION     
+##         print(f'Output angle: {out_angle:.2f}°')
+#        lsteps = [step]
+#        lresolution = [resolution]
+#            
+#        
+#        return lsteps, lresolution, out_angle
+#    
+#    def move_angle(self, angle, direction = None, resolution = 16):
+#        """
+#        Tells the goniometer to move a certain angle in the specified direction and resolution.
+#        
+#        Parameters
+#        ----------
+#        angle : float
+#            Angle to move. CLoackwise if positive, counterclockwise if negative.
+#        direction : int (only 0 or 1), optional
+#            Move clockwise (0) or counterclockwise (1). If not specified the direction is inferred from the sign
+#            of angle (prefered choice). The default is None.
+#        resolution: int (only 1, 2, 4, 8, 16), optional
+#            The resolution of the microsteps. The default is 16 (1/16th of the step). The default is 16.
+#        
+#        Returns
+#        -------
+#            out_angle : float
+#                Calculated angle that the motor will move.
+#        """
+#        
+#        if direction is None:
+#            if angle >= 0: direction = gpio.LOW
+#            else: direction = gpio.HIGH
+#            
+#        gpio.output(self.dirPIN, direction) # Pull the direction pin LOW/HIGH depending on the rotation 
+#        sleep(0.1)
+#        
+#        angle = abs(angle) # Makes sure the angle is always positive for the tep calculation
+#        msteps, mresolution, out_angle = self.angle2steps(angle, resolution = resolution)
+#         # The list style is a remanent of old code or in case I want to implement a faster movement in teh future.
+#         
+#        for steps, res in zip(msteps, mresolution):
+#            for i in range(steps):
+#                gpio.output(self.stepPIN, gpio.HIGH)
+#                sleep(self.delay)
+#                gpio.output(self.stepPIN, gpio.LOW)
+#                sleep(self.delay)
+#        
+#        return out_angle
+#    
+#    def disable_gonio(self):
+#        """
+#        Disables the gonio motor.
+#        """
+#        gpio.output(self.enPIN, gpio.HIGH)
+#        print('INFO: Gonio motor disabled')
+#        return None
+#    
+#    def enable_gonio(self):
+#        """
+#        Enables the gonio motor.
+#        """
+#        gpio.output(self.enPIN, gpio.LOW)
+#        print('INFO: Gonio motor enabled')
+#        return None
+#    
+#    def move_angle_shutter(self, angle = 45, angle_x_duty = 20, offset = 3.7):
+#        """
+#        Move the shutter servo up to certain angle.
+#        
+#        Parameters
+#        ----------
+#        angle : float, optional
+#            Angle to move the shutter. The default is 270 deg.
+#        angle_x_duty : float, optional
+#            Angle per unit of pwm. The default is 21 deg.
+#        offset : float, optional
+#            Duty cycle at 0 deg. The default is 3 deg.   
+#        """
+#        
+#        duty = angle / angle_x_duty + offset
+##        print(duty)
+#        if duty > 10:
+#            duty = 10
+#            print('INFO: Max. angle reached.')
+#        elif duty < 3:
+#            duty = 3
+#            print('INFO: Min. angle reached.')
+#            
+#        # Move servo to the desired positon
+#        self.pwm.ChangeDutyCycle(duty)
+#        
+#        sleep(0.5) # Wait sufficient time to reach it
+#        # Deactivate servo 
+#        self.pwm.ChangeDutyCycle(0)
+#        
+#    def open_shutter(self):
+#        """
+#        Opens the shutter
+#        """
+#        self.move_angle_shutter(self.open_angle)
+#        self.shutter_is_closed = False
+#        
+#        print('INFO: Shutter opened.')
+#        
+#    def close_shutter(self):
+#        """
+#        Closes the shutter
+#        Parameters:
+#        -----------
+#        open_angle : float
+#            Angle at which the shutter is open.
+#        """
+#        self.move_angle_shutter(self.closed_angle)
+#        self.shutter_is_closed = True
+#        print('INFO: Shutter closed.')
+#   
+#    def move_shutter (self):
+#        """
+#        Checks wheter the shutter is open or closed and moves it based on that.
+#        """
+#        if self.shutter_is_closed:
+#            self.open_shutter()
+#        else:
+#            self.close_shutter()
