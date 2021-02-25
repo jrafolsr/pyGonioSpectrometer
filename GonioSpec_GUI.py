@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Fri Oct 11 09:47:49 2019
@@ -13,13 +14,14 @@ from dash.dependencies import Input, Output, State
 from time import sleep, time
 from os.path import join as pjoin, isdir
 import plotly.graph_objs as go
-from instrumentation import SpectraMeasurement, list_spectrometers, list_ports, ArduinoMotorController
+from instrumentation import SpectraMeasurement, list_spectrometers, list_ports, RaspberryMotorController
 import numpy as np
-from winsound import Beep
+#from winsound import Beep
 from datetime import datetime
 from scipy.optimize import curve_fit
+from flask import request
 
-from GonioSpec_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA, ARDUINO_PORT,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME, PORT
+from GonioSpec_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME, PORT
 
 
 flame = None
@@ -42,7 +44,6 @@ TRACES = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'),
 
 
 LSPECTROMETERS = list_spectrometers()
-LPORTS  = list_ports()
 CURRENT_ANGLE = []
 SRI = []
 
@@ -65,6 +66,13 @@ def write_to_file(etime, angle, data, file, debug = False):
     if debug:
         print(f'INFO: Data saved at \n\t{file:s}')
 
+# A function to shutdown the server
+def shutdown():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+    
 #%%    
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -112,14 +120,14 @@ app.layout = html.Div(children =  [
                 style = {'width' : '200'},
                 searchable = False
             ),
-        html.Span('Arduino COM port:'),
-        dcc.Dropdown(id  = 'dropdown-arduino',
-            options = [{'label' : name, 'value': name} for name in LPORTS],
-            value = ARDUINO_PORT if ARDUINO_PORT in LPORTS else None,
-            placeholder = 'No detected ports',
-            style = {'width' : '200'},
-            searchable = False
-            )            
+#        html.Span('Arduino COM port:'),
+#        dcc.Dropdown(id  = 'dropdown-arduino',
+#            options = [{'label' : name, 'value': name} for name in LPORTS],
+#            value = ARDUINO_PORT if ARDUINO_PORT in LPORTS else None,
+#            placeholder = 'No detected ports',
+#            style = {'width' : '200'},
+#            searchable = False
+#            )            
             ],    
         ),
         
@@ -160,18 +168,18 @@ app.layout = html.Div(children =  [
                buttonText = 'clear',
                n_clicks = 0,
                ),            
-            daq.StopButton(id='button-move-left',
-               disabled = True,
-#               title = 'Moves the gonio 0.1125° left',
-               buttonText = 'left',
-               n_clicks = 0,
-               ),
-         daq.StopButton(id='button-move-right',
-               disabled = True,
-#               title = 'Moves the gonio 0.1125° right',
-               buttonText = 'right',
-               n_clicks = 0,
-               ),
+#            daq.StopButton(id='button-move-left',
+#               disabled = True,
+##               title = 'Moves the gonio 0.1125° left',
+#               buttonText = 'left',
+#               n_clicks = 0,
+#               ),
+#         daq.StopButton(id='button-move-right',
+#               disabled = True,
+##               title = 'Moves the gonio 0.1125° right',
+#               buttonText = 'right',
+#               n_clicks = 0,
+#               ),
          daq.StopButton(id='button-move-shutter',
                disabled = True,
 #               title = 'Opens/closes the shutter',
@@ -250,8 +258,6 @@ app.layout = html.Div(children =  [
 @app.callback([Output('button-adquire', 'disabled'),
                Output('button-start', 'disabled'),
                Output('integration-time', 'disabled'),
-               Output('button-move-left', 'disabled'),
-               Output('button-move-right', 'disabled'),
                Output('button-move-shutter', 'disabled'),
                Output('button-clear', 'disabled'),
                Output('button-update', 'disabled'),
@@ -259,12 +265,11 @@ app.layout = html.Div(children =  [
                Output('button-autozero', 'disabled')],
               [Input('power-button', 'on')],
               [State('dropdown-spectrometers', 'value'),
-               State('dropdown-arduino', 'value'),
                State('integration-time', 'value')],
               prevent_initial_call = True)
-def enable_buttons(on, resource_spectrometer,resource_gonio, integration_time):
+def enable_buttons(on, resource_spectrometer, integration_time):
     global gonio, flame, WAVELENGTHS
-    n_buttons = 10
+    n_buttons = 8
     
     try:
         if on:
@@ -272,7 +277,7 @@ def enable_buttons(on, resource_spectrometer,resource_gonio, integration_time):
             flame = SpectraMeasurement(resource_spectrometer, integration_time)
             flame.open()
             
-            gonio = ArduinoMotorController(resource_gonio)
+            gonio = RaspberryMotorController()
             
             print('INFO: Instrument is configured and ready')
             WAVELENGTHS = flame.get_wavelengths()
@@ -288,6 +293,7 @@ def enable_buttons(on, resource_spectrometer,resource_gonio, integration_time):
             flame.close()
             sleep(1)
             buttons_state = True
+            shutdown()
 
     except Exception as e:
         print(e)
@@ -364,7 +370,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     SRI = []
     CURRENT_ANGLE = []
     n_angles = int(angle_max*100) // int(angle_step*100) + 1
-    n_columns = n_angles * 2 - 1 + 4
+#    n_columns = n_angles * 2 - 1 + 4
     n_steps = 2 * (n_angles -1)
     
     # Data saving according to Mattias strategy (to be improved)
@@ -392,7 +398,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
               
     
     print('INFO: Measurement STARTED!')
-    Beep(3000, 250)
+#    Beep(3000, 250)
     # Getting the wavelength vector
     WAVELENGTHS = flame.get_wavelengths()
 #    data[:,0] = WAVELENGTHS
@@ -411,7 +417,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
                   
     # Open the shutter
     gonio.move_shutter()
-    [Beep(2000,200) for i in range (5)] # Reminder of measurement starting
+#    [Beep(2000,200) for i in range (5)] # Reminder of measurement starting
     sleep(WAIT_TIME)
     
     # Take 1st spectra at zero
@@ -527,9 +533,7 @@ def check_folder(value):
     return msg
 
 @app.callback([Output('dropdown-spectrometers', 'options'),
-               Output('dropdown-arduino', 'options'),
-                Output('dropdown-spectrometers', 'value'),
-               Output('dropdown-arduino', 'value')],
+                Output('dropdown-spectrometers', 'value')],
               [Input('button-refresh-ports', 'n_clicks')],
               prevent_initial_call = True)
 def refresh_ports(n_ports):
@@ -537,13 +541,13 @@ def refresh_ports(n_ports):
     LSPECTROMETERS = list_spectrometers()
     LPORTS = list_ports()
     
-    options_arduino = [{'label' : name, 'value': name} for name in LPORTS]
+#    options_arduino = [{'label' : name, 'value': name} for name in LPORTS]
     options_spec = [{'label' : str(name), 'value': name.serial_number} for name in  LSPECTROMETERS]
     
     value_spec = None if LSPECTROMETERS == [] else  LSPECTROMETERS[0].serial_number
-    value_arduino = ARDUINO_PORT if ARDUINO_PORT in LPORTS else None
+#    value_arduino = ARDUINO_PORT if ARDUINO_PORT in LPORTS else None
 
-    return options_spec, options_arduino, value_spec, value_arduino
+    return options_spec, value_spec
 
 
 @app.callback(Output('label-it', 'children'),
@@ -560,12 +564,10 @@ def set_integration_time(value):
     return f'Integration time is {value:.4g} ms'
 
 @app.callback(Output('motor-movement', 'children'),
-              [Input('button-move-left', 'n_clicks'),
-              Input('button-move-right', 'n_clicks'),
-              Input('button-move-shutter', 'n_clicks'),
+              [Input('button-move-shutter', 'n_clicks'),
               Input('button-set-bkg', 'n_clicks'),
               Input('button-autozero', 'n_clicks')])
-def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
+def gonio_and_spectra_functions(nshutter, nbkg, nautozero):
     global gonio, traces
     # Determine which button has been clicked
     ctx = dash.callback_context
@@ -574,11 +576,7 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
         button_id = 'No clicks yet'
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    if button_id == 'button-move-left':
-        gonio.move_angle(1.8 / 8)
-    elif button_id == 'button-move-right':
-        gonio.move_angle(-1.8/8)
-    elif button_id == 'button-move-shutter':
+    if button_id == 'button-move-shutter':
         gonio.move_shutter()
     elif button_id == 'button-set-bkg':
         print('INFO: Background spectra set')
@@ -610,8 +608,9 @@ if __name__ == '__main__':
         app.run_server(debug = True, port = PORT)
     except KeyboardInterrupt as e:
         print(e)
-        
-    if flame is not None:
-        flame.close()   
-    if gonio is not None:
-        gonio.close()
+    finally:  
+        if flame is not None:
+            flame.close()   
+        if gonio is not None:
+            if not gonio.isclosed:
+                gonio.close()
