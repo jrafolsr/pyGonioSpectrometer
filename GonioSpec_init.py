@@ -8,7 +8,7 @@ Created on Wed Jul  1 09:32:02 2020
 
 #-------------------------------- GUI -----------------------------------------
 # Port where the GUI will be deployed, just change if it conflicts with another app
-PORT = 8051
+PORT = 8052
 
 #-------------------------------- Spectrometer --------------------------------
 # Max number of counts accepted but he Spectromenter, now it corresponds to the OceanOptics Flame value
@@ -19,7 +19,7 @@ INITIAL_NSPECTRA = 10
 
 #------------------------------------ Gonio -----------------------------------
 # Port where arduino is connected
-ARDUINO_PORT = 'ASRL7::INSTR' 
+#ARDUINO_PORT = 'ASRL7::INSTR' 
 # Angular step, can't be zero or bigger than INITIAL_MAX_ANGLE
 INITIAL_STEP = 10 
 # Max angle gonio will do
@@ -29,6 +29,6 @@ WAIT_TIME = 1.5
 
 #--------------------------------- Saving data---------------------------------
 # Default path to the directotry where the file will be saved, unless later modified by user
-INITIAL_PATH = r'C:\Users\OPEGLAB\Documents\data\goniospectrometer'
+INITIAL_PATH = r'/home/pi/Documents/data'
 # Default filename where the data will be saved, unless later modified by user
 INITIAL_FILENAME = 'angular_sri'
