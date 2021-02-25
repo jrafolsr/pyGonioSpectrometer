@@ -10,7 +10,7 @@ from time import sleep, time
 import numpy as np
 from matplotlib import pyplot as plt
 from datetime import datetime
-import winsound
+#import winsound # Does not work in Linux
 from pyGonioSpectrometer.instrumentation import list_ports, ArduinoMotorController, SpectraMeasurement, list_spectrometers
 
 # Parameters for the beeping, quite irrellevant, I'll consider to remove it
@@ -108,9 +108,13 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         # Saving the data in Mattias's scheme
 #        data[:,0] = wavelengths
         
-        winsound.Beep(frequency, duration*2) # It will remind that the measureement starts
+#        winsound.Beep(frequency, duration*2) # It will remind that the measureement starts
+        for i in range(2):
+            print(f'\rMeasurement starting in {i:d} s...')
+            sleep(1)
         
-        print('INFO: Taking dark spectra....')
+        
+        print('\nINFO: Taking dark spectra....')
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, np.nan, temp, path)
@@ -125,7 +129,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         gonio.move_shutter()
 
         
-        [winsound.Beep(frequency,100) for i in range (5)] # Reminder of measurement starting
+#        [winsound.Beep(frequency,100) for i in range (5)] # Reminder of measurement starting
         sleep(WAIT_TIME)
         
         # Take spectra at zero
