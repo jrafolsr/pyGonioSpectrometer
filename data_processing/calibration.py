@@ -15,6 +15,7 @@ path_IRF = pjoin(fcal, 'IRF_FlameBlueFiber_wLens2945K.txt')
 path_eye_response = pjoin(fcal, 'CIE1988photopic.txt')
 
 ABS_CALFACTOR = 7.10e6 # Calibration from 15/07/2020
+#ABS_CALFACTOR = 1.44e6 # Calibration factor 26/02/2021 for the Raspberry Setup
 # ABS_CALFACTOR = 5.4178E6 # OLD Mattias' absolute numbers calibration factor, 170224 ML
 
 # Pixel size of the McScience substrate
