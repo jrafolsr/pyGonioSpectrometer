@@ -6,7 +6,7 @@ Created on Fri Jun 12 11:12:33 2020
 """
 #%%
 from pyGonioSpectrometer import gonio_measurement, write_to_file
-from pyGonioSpectrometer.instrumentation import list_spectrometers, SpectraMeasurement, ArduinoMotorController
+from pyGonioSpectrometer.instrumentation import list_spectrometers, SpectraMeasurement, RaspberryMotorController
 
 from time import sleep, time
 import numpy as np
@@ -22,7 +22,7 @@ LOWER_LIM = 20000 # Min. number of counts allowed before incresing the integrati
 
 def gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
-                      name_motor, name_spectrometer,\
+                      name_spectrometer,\
                       angle_step = 5, angle_max = 80,\
                       interval_luminance = 10,\
                       stop_luminance_after = 7200,\
@@ -40,8 +40,6 @@ def gonio_time_series(filename, folder,\
         Sets the integration time in ms.
     n_spectra : int
         Number of spectra that will be averaged.
-    name_motor : str
-        String containg the COM address where the motor driver is located (the Arduino). You can get the available ports by using the list_ports() function.
     name_spectrometer: seabreeze.spectrometers.Spectrometer class
         The spectrometer resource as the specified class. You can get it from list_spectrometers().
     angle_step : int or float, optional
@@ -69,11 +67,14 @@ def gonio_time_series(filename, folder,\
     time_zero = time()
     start_time_gonio = time() # Initialize, but does not really matter
     
-    # Initialize counters and flags
+    # Initialize counters and flags and gonio
+    gonio = RaspberryMotorController()
     shutter_open = False # Keeps track of the shutter status on the function level.
     close_resources = True # Keeps track of the shutter status of the resources
     # Loop counter
     k = 0
+    
+    
     
     while True:
         k += 1
@@ -88,9 +89,7 @@ def gonio_time_series(filename, folder,\
         ninterval = int(interval_gonio // interval_luminance)
         
         try:
-            
-            gonio = ArduinoMotorController(name_motor)
-            
+
             flame = SpectraMeasurement(name_spectrometer,\
                                        integration_time = integration_time,\
                                        n_spectra = n_spectra)
@@ -120,8 +119,6 @@ def gonio_time_series(filename, folder,\
                 write_to_file(np.nan, integration_time, intensities, path)
                 
                 sleep(0.25)
-                
-                print('INFO: Opening shutter')
                 gonio.move_shutter()
                 shutter_open = True
                 sleep(0.5)
@@ -156,8 +153,7 @@ def gonio_time_series(filename, folder,\
             # If the time is >= stop_luminance_after, skip the forward luminance measurement and just do the check to adapt the int_time
             sleep(1.0)   
             print('INFO: Self-adjusting the integration time.')
-            print('INFO: Opening shutter')
-            
+
             gonio.move_shutter()
             shutter_open = True
             
@@ -170,7 +166,6 @@ def gonio_time_series(filename, folder,\
             shutter_open = False
             close_resources = False
                 
-            gonio.close()   
             flame.close()
             
             sleep(2.0)
@@ -179,13 +174,15 @@ def gonio_time_series(filename, folder,\
             shutter_open = True
             
             print(f'\n\t<<<<< INFO: Taking measurement #{k:d} >>>>>')
-            
+
             # Gonio measurements
             start_time_gonio = time()
-            gonio_measurement(name_motor,angle_max, angle_step,\
+            gonio_measurement(angle_max, angle_step,\
+                      gonio,\
                       name_spectrometer, integration_time, n_spectra,\
                       filename = filename, folder = folder,\
                       disable_gonio = False, plot = False)
+
             
             shutter_open = False
             
@@ -202,19 +199,18 @@ def gonio_time_series(filename, folder,\
         except Exception as e:
             print(e)
             break
-        finally:
-            if shutter_open & close_resources:
-                gonio.move_shutter()
-            if close_resources:
-                flame.close()
-                gonio.close()
+
+    if shutter_open & close_resources:
+        gonio.move_shutter()
+    if close_resources:
+        flame.close()
+        gonio.close()
+
     
 if __name__ == '__main__':
     # Define folder and filename
-    folder = pjoin(r'C:\Users\OPEGLAB\Documents\data\goniospectrometer')    
+    folder = pjoin('/home/pi/Documents/data')    
     filename = 'default_time-series'
-    # Gonio measurement
-    name_motor = 'ASRL7::INSTR'
     # Define variables for the spectrometer measurements
     # Assuming there is only one spectrometer, so taking the first element
     name_spectrometer = list_spectrometers()[0]
@@ -225,4 +221,4 @@ if __name__ == '__main__':
     
     gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
-                      name_motor, name_spectrometer)
+                      name_spectrometer)

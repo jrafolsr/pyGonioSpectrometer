@@ -293,7 +293,7 @@ def enable_buttons(on, resource_spectrometer, integration_time):
             flame.close()
             sleep(1)
             buttons_state = True
-            shutdown()
+#            shutdown()
 
     except Exception as e:
         print(e)
@@ -437,7 +437,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     sleep(WAIT_TIME*2) # Wait long enough for the movement to finish
     
     #Initialize the error made
-    error = (angle_max - out_angle)
+#    error = (angle_max - out_angle)
     total = 0
     current_angle = -out_angle
 
@@ -460,11 +460,15 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
         CURRENT_ANGLE.append(current_angle)
         
-        # Calculating next step
-        next_step = angle_step + error
-    # print(f'Step = {angle_step:.0f}, Out_angle = {out_angle:.2f}, Corrected_angle = {next_step:.2f}, Error made: {error:.2}')
-        out_angle = gonio.move_angle(next_step)  
-        error = (next_step - out_angle)
+#        # Calculating next step
+#        next_step = angle_step + error
+#    # print(f'Step = {angle_step:.0f}, Out_angle = {out_angle:.2f}, Corrected_angle = {next_step:.2f}, Error made: {error:.2}')
+#        out_angle = gonio.move_angle(next_step)  
+#        error = (next_step - out_angle)
+
+        out_angle = gonio.move_angle(angle_step)  
+        
+        
         total += abs(out_angle)
         current_angle += out_angle
         sleep(WAIT_TIME)
@@ -486,7 +490,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 
     
     # Going back to initial angle
-    back_angle = -1.0 * abs(current_angle)
+    back_angle = -1 * abs(current_angle)
     out_angle = gonio.move_angle(back_angle)
     current_angle -= out_angle
 
@@ -593,7 +597,8 @@ def gonio_and_spectra_functions(nshutter, nbkg, nautozero):
             x1 = np.linspace(x.min(),x.max(),101)
             y1 = pol2_sym(x1, *popt) * ymax
             TRACES.append(go.Scatter(x = x1, y = y1, name = 'fit', mode = 'lines', xaxis = 'x2', yaxis = 'y2'))
-            gonio.move_angle(x0)
+            gonio.move_angle(x0, correct_drift = False)
+            gonio.steps_counter = 0
             print(f'INFO: Zero offset is {x0:.2f}°')
         else: 
             print(f'ERROR: No data to fit')

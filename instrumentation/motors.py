@@ -16,6 +16,7 @@ Explanation to be improved.
 from pyvisa import ResourceManager
 from time import sleep, time
 import RPi.GPIO as gpio
+from math import exp
 
 # Declaration of constants
 FACTOR = 1000000 # We'll be working with udeg, so the interger operations work fine
@@ -321,18 +322,18 @@ class RaspberryMotorController():
         
     """
     
-    def __init__(self, pinout = (27, 17, 16), delay = 0.1, shutter_angle = 180):
+    def __init__(self, pinout = (27, 17, 26), delay = 0.5, shutter_angle = 180):
         """
         It assumes the shutter is closed from the beginning.
         Parameters
         ----------
         pinout : 4-element tuple or list, optional
             Tuple containing the pins as int for the motor driver in the order: stepPIN, directionPIN, enablePIN.
-            The default is (17, 27, 16).
+            The default is (17, 27, 26).
         delay : float, optional
             Delay between the triggers send to the motor drivers in ms. The default is 0.1 ms.
-        shutter_angles : float
-            Angle corresponding to the open and closed position of the shutter.
+        shutter_angle : int
+            Angle corresponding to the open and closed position of the shutter, it must be an int.The default is 180.
         """
         
         gpio.setmode(gpio.BCM)
@@ -341,15 +342,20 @@ class RaspberryMotorController():
         
         self.pinout = pinout
         self.stepPIN, self.dirPIN, self.enPIN = pinout
+        self.angle_error = 0.00
         
-        self.delay = delay / 1000
-        self.shutter_angle = shutter_angle
+        self.delay = delay
+        self.shutter_angle = int(180)
+        self.shutter_steps = (self.shutter_angle * FACTOR ) // int(MOTOR_ASTEP // 16) # Using the default resolution of 1/16h
+        self.shutter_counter = 0
         # Initialize all the pinouts to LOW
         [gpio.output(i, gpio.LOW) for i in self.pinout]
         
         # Initialize the pwm to control the shutter servo
         self.isclosed = False
         self.shutter_is_closed = True
+        self.direction = 0 # Controls the change of direction to correct the error drift
+        self.steps_counter = 0
         
         sleep(1)
         
@@ -387,36 +393,28 @@ class RaspberryMotorController():
             
         Returns
         -------
-            lsteps : list
-                List wgpio_functionith the number of steps per commthonScripts/pyGonioSpectrometer/instrumentation')
-
-In [14]: and. (To be updated to a int value once slow optional arg is removed.)
-            lresolution: list
-                List with the resolutions per command. (To be updated to a int value once slow optional arg is removed.)
+            steps : int
+                Number of steps
             out_angle: float
                 Calculated angle that the motor will move given by the snumber_of_steps *  microstep.
         """
     
     #     print(f'Input angle: {angle:.2f}°')
         angle = int (angle * FACTOR) # Angle to udeg and to integer, for a proper modules operation
-        
 
         if resolution not in RESOLUTIONS:
             raise Exception('The resolution value is not accepted. Must be one of this: 1, 2, 4, 8 or 16.')
         
         A_RESOLUTION = MOTOR_ASTEP / FACTOR / resolution
 #         print(f'Using a fixed step of {A_RESOLUTION:.4f}')
-        step = angle // int(A_RESOLUTION * FACTOR)
+        steps = angle // int(A_RESOLUTION * FACTOR)
         
-        out_angle = step * A_RESOLUTION     
+        out_angle = steps * A_RESOLUTION     
 #         print(f'Output angle: {out_angle:.2f}°')
-        lsteps = [step]
-        lresolution = [resolution]
-            
-        
-        return lsteps, lresolution, out_angle
+              
+        return steps, round(out_angle,4)
     
-    def move_angle(self, angle, direction = None, resolution = 16):
+    def move_angle(self, angle, direction = None, resolution = 16, correct_drift = True):
         """
         Tells the goniometer to move a certain angle in the specified direction and resolution.
         
@@ -441,20 +439,49 @@ In [14]: and. (To be updated to a int value once slow optional arg is removed.)
             else: direction = gpio.HIGH
             
         gpio.output(self.dirPIN, direction) # Pull the direction pin LOW/HIGH depending on the rotation 
+        
         sleep(0.1)
         
-        angle = abs(angle) # Makes sure the angle is always positive for the tep calculation
-        msteps, mresolution, out_angle = self.angle2steps(angle, resolution = resolution)
-         # The list style is a remanent of old code or in case I want to implement a faster movement in teh future.
-         
-        for steps, res in zip(msteps, mresolution):
-            for i in range(steps):
-                gpio.output(self.stepPIN, gpio.HIGH)
-                sleep(self.delay)
-                gpio.output(self.stepPIN, gpio.LOW)
-                sleep(self.delay)
+        if correct_drift:
+            if self.direction != direction:
+                # A change in the direction has occurred, so the error needs to be reversed
+                self.angle_error *= -1
+                self.direction = direction
+
+        # Makes sure the angle is always positive for the step calculation and adds the drift error
+        
+        angle = round(abs(round(angle, 1)) + self.angle_error, 4)
+        steps, out_angle = self.angle2steps(angle, resolution = resolution)      
+        
+        if correct_drift: self.angle_error = round(angle - out_angle, 4)
+        
+        self.move_steps(steps)
+        
+        sleep(0.25)
+        
+        
         
         return out_angle
+    
+    def move_steps(self, steps):
+        # Replacing the fix delay with the accelerator generator.
+        delays = self.__accelerator__(steps)
+        for delay in delays:
+#            for i in range(steps):
+            gpio.output(self.stepPIN, gpio.HIGH)
+#            sleep(delay)
+            gpio.output(self.stepPIN, gpio.LOW)
+            sleep(delay)
+            
+        self.steps_counter += (-1)**(self.direction +2) *steps
+        
+#        print(f'INFO: Total number of steps perfomed: {self.steps_counter:d}')
+            
+    def __accelerator__(self, steps, tau = 50, max_delay = 2):
+        a = 1/tau
+        delays = [(max_delay * (exp(-i*a) + exp((i-steps + 1)*a)) +self.delay) * 0.001 for i in range(steps)]
+#        delays = [0.001 for i in range(steps)]
+        return  delays
     
     def disable_gonio(self):
         """
@@ -477,10 +504,17 @@ In [14]: and. (To be updated to a int value once slow optional arg is removed.)
         """
         Opens the shutter
         """
-        self.move_angle(- self.shutter_angle)
+        self.direction = (self.shutter_counter + 1) % 2
+        gpio.output(self.dirPIN, self.direction) # Pull the direction pin LOW/HIGH depending on the rotation 
+        sleep(0.1)
+        
         self.shutter_is_closed = False
+        self.move_steps(self.shutter_steps)
+        sleep(2)
         
         print('INFO: Shutter opened.')
+        
+
         
     def close_shutter(self):
         """
@@ -490,10 +524,19 @@ In [14]: and. (To be updated to a int value once slow optional arg is removed.)
         open_angle : float
             Angle at which the shutter is open.
         """
-        self.move_angle(self.shutter_angle)
+        self.direction = self.shutter_counter % 2
+        
+        gpio.output(self.dirPIN,self.direction ) # Pull the direction pin LOW/HIGH depending on the rotation
+
+        sleep(0.1)
         self.shutter_is_closed = True
+        self.shutter_counter += 1
+        self.move_steps(self.shutter_steps)
+        sleep(2)
+        
         print('INFO: Shutter closed.')
-   
+
+    
     def move_shutter (self):
         """
         Checks wheter the shutter is open or closed and moves it based on that.
