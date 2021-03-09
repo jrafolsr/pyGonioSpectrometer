@@ -54,20 +54,23 @@ def gonio_measurement(angle_max, angle_step,\
         Whether to plot or not the data. It is better to set it to false for a time series measurement, otherwise one will end with to many open windows. The default is True.
 
     """ 
+    # making sure that the angle step and the max angel are compatible
+    _ , residu = divmod(angle_max, angle_step)
+    if residu != 0.0:
+            raise Exception("The angle step is not a divisor of the max. angle!")
     # Initializing flame objects.
     flame = None
     # Initalizing some variables
-    
     current_angle = 0.0
-    
+        
     try:
-        # Create the object instance taht will control the spectrometer, assuming it is the first of the list
+        # Create the object instance taht will control the spectrometer, assuming it is the
+#        first of the list
         flame = SpectraMeasurement(name_spectrometer, integration_time=integration_time, n_spectra= n_spectra)
         flame.open()
-       
-    
+         
         n_angles = int(angle_max*100) // int(angle_step*100) + 1
-        n_steps = (n_angles - 1) *2
+        n_steps = (n_angles - 1) * 2
 
         # Prepraring the plot
         if plot:
@@ -139,9 +142,6 @@ def gonio_measurement(angle_max, angle_step,\
         
         k = 0
         for k in range(n_steps):        
-        
-
-            
             # Get the whole spectra (wl and I)
             temp = flame.get_averaged_intensities()
             # Saving the data in the new scheme
@@ -199,7 +199,7 @@ def gonio_measurement(angle_max, angle_step,\
         print('INFO: The angle-scan has been cancelled by the user. Going back to 0°.')
         if gonio != None:
             # Go back to since the spectrogoniometer movement has been cancelled.
-            back_angle = -1.0 * current_angle          
+            back_angle = -1 * current_angle          
             out_angle = gonio.move_angle(back_angle)
             gonio.move_shutter()
             
@@ -208,7 +208,7 @@ def gonio_measurement(angle_max, angle_step,\
         print('INFO: Some error has ocurred during the angle-scan. Going back to 0°.')
         if gonio != None:
             # Go back to since some error has occurred during the gonio measurement
-            back_angle = -1.0 * current_angle
+            back_angle = -1 * current_angle
             out_angle = gonio.move_angle(back_angle)
             gonio.move_shutter()
     
