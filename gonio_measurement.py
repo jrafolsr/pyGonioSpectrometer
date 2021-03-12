@@ -60,7 +60,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     # Initalizing some variables
     
     current_angle = 0.0
-    
+    angle_step = round(angle_step, 4)
     try:
         # Creates the object that will control the steppers
         gonio = ArduinoMotorController(name_motor)
@@ -100,6 +100,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         winsound.Beep(frequency, duration*2) # It will remind that the measureement starts
         
         print('INFO: Taking dark spectra....')
+        
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, np.nan, temp, path)
@@ -153,7 +154,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
             # Moving the gonio
             out_angle = gonio.move_angle(current_step)
             # New error made
-            error = (current_step - out_angle)
+            error = round((current_step - out_angle), 4)
             total += abs(out_angle)
             current_angle += out_angle
             

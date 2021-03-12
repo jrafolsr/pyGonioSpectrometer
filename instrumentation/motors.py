@@ -161,7 +161,7 @@ class ArduinoMotorController():
             out_angle = np.sum(np.array(langles)*np.array(lsteps))
     #         print(f'Output angle: {out_angle:.2f}°')"""
         
-        return lsteps, lresolution, out_angle
+        return lsteps, lresolution, round(out_angle,4)
     
     def move_angle(self, angle, direction = None, resolution = 16, slow = True):
         """
@@ -256,7 +256,7 @@ class ArduinoMotorController():
         
         steps, _, _ = self.angle2steps(angle, resolution = resolution, slow = slow)
         step = steps[0]
-        
+        print(step)
         if delay is not None:
             sleep(delay)
         
