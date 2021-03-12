@@ -127,13 +127,13 @@ def gonio_time_series(filename, folder,\
                 sleep(0.5)
                 
                 for i in range(ninterval):
-                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance.', end = '')
+                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance...      ', end = '')
                     start_time = time()
                     
                     ellapsed_time_since_bkg = start_time - start_luminance_adquisition
                     
                     intensities = flame.get_averaged_intensities()
-                                
+                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance... Done!', end = '')            
                     # Check for any values higher than saturation
                     if np.any(intensities > SATURATION_COUNTS):
                         print('\n! WARNING: Some values are saturating. Consider lowering the integration time.')
@@ -202,12 +202,12 @@ def gonio_time_series(filename, folder,\
         except Exception as e:
             print(e)
             break
-        finally:
-            if shutter_open & close_resources:
-                gonio.move_shutter()
-            if close_resources:
-                flame.close()
-                gonio.close()
+
+    if shutter_open & close_resources:
+        gonio.move_shutter()
+    if close_resources:
+        flame.close()
+        gonio.close()
     
 if __name__ == '__main__':
     # Define folder and filename
