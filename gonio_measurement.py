@@ -61,6 +61,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     
     current_angle = 0.0
     angle_step = round(angle_step, 4)
+    
     try:
         # Creates the object that will control the steppers
         gonio = ArduinoMotorController(name_motor)
@@ -129,7 +130,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         out_angle = gonio.move_angle(-1.0 * angle_max)
         
         # Initialize the error made in each step
-        error = -1 *  (angle_max - out_angle) # Reversed error as we are going to change direction
+        error = round(-1.0 * (angle_max - out_angle), 4) # Reversed error as we are going to change direction
         total = 0
         current_angle = -out_angle
         print(f'\rINFO: Step # 1, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |#' + ' '* (n_steps + 2) + f'| {2/(n_steps + 3)*100:3.0f} % Done...', end =''  )

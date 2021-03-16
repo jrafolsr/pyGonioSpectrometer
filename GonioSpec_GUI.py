@@ -431,7 +431,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     sleep(WAIT_TIME*2) # Wait long enough for the movement to finish
     
     #Initialize the error made
-    error = (angle_max - out_angle)
+    error = round(-1.0 * (angle_max - out_angle),4)
     total = 0
     current_angle = -out_angle
 
@@ -607,7 +607,7 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
 
 if __name__ == '__main__':
     try:
-        app.run_server(debug = True, port = PORT)
+        app.run_server(debug = True, port = PORT, use_reloader = False)
     except KeyboardInterrupt as e:
         print(e)
         
