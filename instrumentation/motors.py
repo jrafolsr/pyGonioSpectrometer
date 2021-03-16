@@ -256,7 +256,7 @@ class ArduinoMotorController():
         
         steps, _, _ = self.angle2steps(angle, resolution = resolution, slow = slow)
         step = steps[0]
-        print(step)
+#        print(step)
         if delay is not None:
             sleep(delay)
         
