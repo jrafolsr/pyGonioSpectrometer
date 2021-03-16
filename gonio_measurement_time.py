@@ -57,7 +57,11 @@ def gonio_time_series(filename, folder,\
     max_time : int, optional
         Maximum time in seconds allowed per angle step (number of spectra x integration time). The default is 5000 s.
     """
-    
+    # Making sure that the angle step and the max angel are compatible
+    _ , residu = divmod(angle_max, angle_step)
+    if residu != 0.0:
+            raise Exception("The angle step is not a divisor of the max. angle!")
+            
     # Raise error if the time to sample the spectra is shorter than the interval_luminance
     if (n_spectra * integration_time / 1000) >= (interval_luminance * 0.9):
         raise Exception('The interval_luminance is less than 90 % of the time need to take the spectra, consider:\n 1. Reducing n_spectra or integration_time or \nor\n2. Increasing interval_luminance')
