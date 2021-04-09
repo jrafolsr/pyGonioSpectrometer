@@ -25,6 +25,13 @@ The following hardware can be useful but it is not required:
 - A collimating lens (e.g. from Thorlabs).
 - Acces to a 3D printer, e.g. to print the device holder and a coupler to the motor shaft.
 
+
+## The setup
+The following image shows a picture of part of the setup.
+
+![setup_picture](manual/photo_setup+labels.png)
+
+
 ## The code
 The code relies on the great [python-seabreeze](https://python-seabreeze.readthedocs.io/en/latest/) library to control the spectrometer through the ```SpectraMeasurement```class.
 
