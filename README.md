@@ -28,15 +28,17 @@ The following hardware can be useful but it is not required:
 ## The code
 The code relies on the great [python-seabreeze](https://python-seabreeze.readthedocs.io/en/latest/) library to control the spectrometer through the ```SpectraMeasurement```class.
 
-The stepper motor
+The stepper motor is controlled through either the ```ArduinoMotorController``` or the ```RaspberryMotorController``` class. Those objects take care of the goniometer angular movement.
 
-I created also a simple graphical user interface using the [dash](https://dash.plotly.com/) framework.
+The ```gonio_measurement.py``` or  ```gonio_measurement_time.py``` are scripts to perform a full goniospectrometer measurement.
 
-There are two current versions separated (at the moment) via two brances: ```master``` and ```raspberry```:
+The script ```GonioSpec_GUI.py``` launches a simple graphical user interface using the [dash](https://dash.plotly.com/) framework to perform a similar job as ```gonio_measurement.py```.
+
+There are currently two versions of the instrument separated (at the moment) via two brances: ```master``` and ```raspberry```:
 
 1. The instrument in the ```master``` branch assumes that the control for the stepper motor is done via an Arduino and that this one is controlled and synchronized with the spectrometer through a computer. The communication is done via the serial port of the Arduino (the USB) and uses the [pyvisa](https://pyvisa.readthedocs.io/en/latest/) library to manage it.
 
-2. **(Recommended)** The instrument in the ```raspberry``` branch is simplified and you just need a Raspberry Pi (I used the Pi400), since the control of the stepper can be done with directly with the Raspberry's in-built GPIO pins.
+2. **(Recommended)** The instrument in the ```raspberry``` branch is simplified and you just need a Raspberry Pi (I used the Pi400), since the control of the stepper can be done with directly with the Raspberry's in-built GPIO pins and you can skip the PC-Arduino tandem.
 
 
 ## Installation & documentation
