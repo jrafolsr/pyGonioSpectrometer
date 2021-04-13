@@ -283,9 +283,10 @@ def enable_buttons(on, resource_spectrometer,resource_gonio, integration_time):
         else:
             
             print('INFO: Instrument is off')
-#            gonio.disable_gonio()
-            gonio.close()
-            flame.close()
+            if flame is not None:
+                flame.close()   
+            if gonio is not None:
+                gonio.close()
             sleep(1)
             buttons_state = True
 
@@ -364,7 +365,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     SRI = []
     CURRENT_ANGLE = []
     n_angles = int(angle_max*100) // int(angle_step*100) + 1
-    n_columns = n_angles * 2 - 1 + 4
+    # n_columns = n_angles * 2 - 1 + 4
     n_steps = 2 * (n_angles -1)
     
     # Data saving according to Mattias strategy (to be improved)
@@ -497,7 +498,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 #    data[:, k + 5] = temp
     
     # Plotting globals    
-    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'0°', mode = 'lines'))
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = '0°', mode = 'lines'))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
     CURRENT_ANGLE.append(current_angle)
 
@@ -564,8 +565,9 @@ def set_integration_time(value):
               Input('button-move-right', 'n_clicks'),
               Input('button-move-shutter', 'n_clicks'),
               Input('button-set-bkg', 'n_clicks'),
-              Input('button-autozero', 'n_clicks')])
-def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
+              Input('button-autozero', 'n_clicks'),
+              State('input-step-angle','value')])
+def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero, angle_step):
     global gonio, traces
     # Determine which button has been clicked
     ctx = dash.callback_context
@@ -575,9 +577,9 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     if button_id == 'button-move-left':
-        gonio.move_angle(1.8 / 8)
+        gonio.move_angle(round(angle_step,4))
     elif button_id == 'button-move-right':
-        gonio.move_angle(-1.8/8)
+        gonio.move_angle(round(-1.0 * angle_step,4))
     elif button_id == 'button-move-shutter':
         gonio.move_shutter()
     elif button_id == 'button-set-bkg':
@@ -598,7 +600,7 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero):
             gonio.move_angle(x0)
             print(f'INFO: Zero offset is {x0:.2f}°')
         else: 
-            print(f'ERROR: No data to fit')
+            print('ERROR: No data to fit')
         
     else:
         pass
