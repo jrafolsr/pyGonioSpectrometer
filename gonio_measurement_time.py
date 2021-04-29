@@ -57,7 +57,11 @@ def gonio_time_series(filename, folder,\
     max_time : int, optional
         Maximum time in seconds allowed per angle step (number of spectra x integration time). The default is 5000 s.
     """
-    
+    # Making sure that the angle step and the max angel are compatible
+    _ , residu = divmod(angle_max, angle_step)
+    if residu != 0.0:
+            raise Exception("The angle step is not a divisor of the max. angle!")
+            
     # Raise error if the time to sample the spectra is shorter than the interval_luminance
     if (n_spectra * integration_time / 1000) >= (interval_luminance * 0.9):
         raise Exception('The interval_luminance is less than 90 % of the time need to take the spectra, consider:\n 1. Reducing n_spectra or integration_time or \nor\n2. Increasing interval_luminance')
@@ -67,7 +71,6 @@ def gonio_time_series(filename, folder,\
     
     # General initial timer
     time_zero = time()
-    start_time_gonio = time() # Initialize, but does not really matter
     
     # Initialize counters and flags
     shutter_open = False # Keeps track of the shutter status on the function level.
@@ -78,6 +81,7 @@ def gonio_time_series(filename, folder,\
     while True:
         k += 1
         
+        start_time_gonio = time() # Initialize, but does not really matter
         # Adjust the interval_luminance
         total_ellapsed_time = time() - time_zero
         if total_ellapsed_time > 1800: # After 30 min take spectra min
@@ -97,7 +101,9 @@ def gonio_time_series(filename, folder,\
             close_resources = True
             
             # We perform only forward luminance measurements, i.e. at angle 0.
-            if total_ellapsed_time <= stop_luminance_after:
+            measure_luminance = total_ellapsed_time <= stop_luminance_after
+            
+            if measure_luminance:
                 print(f'\n\t<<<<< INFO: Measuring L0  every {interval_luminance:.0f} s >>>>>')
                 # Timestamps for the header and filename
                 itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
@@ -127,13 +133,13 @@ def gonio_time_series(filename, folder,\
                 sleep(0.5)
                 
                 for i in range(ninterval):
-                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance.', end = '')
+                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance...      ', end = '')
                     start_time = time()
                     
                     ellapsed_time_since_bkg = start_time - start_luminance_adquisition
                     
                     intensities = flame.get_averaged_intensities()
-                                
+                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance... Done!', end = '')            
                     # Check for any values higher than saturation
                     if np.any(intensities > SATURATION_COUNTS):
                         print('\n! WARNING: Some values are saturating. Consider lowering the integration time.')
@@ -181,7 +187,7 @@ def gonio_time_series(filename, folder,\
             print(f'\n\t<<<<< INFO: Taking measurement #{k:d} >>>>>')
             
             # Gonio measurements
-            start_time_gonio = time()
+            
             gonio_measurement(name_motor,angle_max, angle_step,\
                       name_spectrometer, integration_time, n_spectra,\
                       filename = filename, folder = folder,\
@@ -189,7 +195,7 @@ def gonio_time_series(filename, folder,\
             
             shutter_open = False
             
-            # Wait the amount of time specified by gonio
+            # Wait the amount of time specified by gonio only when the lumiance is not taken
             while (time() - start_time_gonio) < interval_gonio:
                 minutes, seconds =  divmod(interval_gonio - (time() - start_time_gonio), 60)  
                 print(f'\rINFO: Next gonio measurement in {minutes:02.0f}:{seconds:02.0f}...', end = '')
@@ -202,12 +208,12 @@ def gonio_time_series(filename, folder,\
         except Exception as e:
             print(e)
             break
-        finally:
-            if shutter_open & close_resources:
-                gonio.move_shutter()
-            if close_resources:
-                flame.close()
-                gonio.close()
+
+    if shutter_open & close_resources:
+        gonio.move_shutter()
+    if close_resources:
+        flame.close()
+        gonio.close()
     
 if __name__ == '__main__':
     # Define folder and filename
