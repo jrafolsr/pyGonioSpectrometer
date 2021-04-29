@@ -180,7 +180,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print('INFO: The angle-scan has been cancelled by the user. Going back to 0°.')
         if gonio != None:
             # Go back to since the spectrogoniometer movement has been cancelled.
-            back_angle = round(-1 * abs(current_angle), 4)     
+            back_angle = round(-1 * current_angle, 4)     
             out_angle = gonio.move_angle(back_angle)
             gonio.move_shutter()
             
@@ -189,7 +189,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print('INFO: Some error has ocurred during the angle-scan. Going back to 0°.')
         if gonio != None:
             # Go back to since some error has occurred during the gonio measurement
-            back_angle = round(-1 * abs(current_angle), 4)
+            back_angle = round(-1 * current_angle, 4)
             out_angle = gonio.move_angle(back_angle)
             gonio.move_shutter()
     finally:
