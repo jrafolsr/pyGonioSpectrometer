@@ -18,8 +18,10 @@ import numpy as np
 from winsound import Beep
 from datetime import datetime
 from scipy.optimize import curve_fit
+import getopt
+import sys
 
-from GonioSpec_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA, ARDUINO_PORT,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME, PORT
+from GonioSpec_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA, ARDUINO_PORT,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME
 
 
 flame = None
@@ -367,14 +369,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     n_angles = int(angle_max*100) // int(angle_step*100) + 1
     # n_columns = n_angles * 2 - 1 + 4
     n_steps = 2 * (n_angles -1)
-    
-    # Data saving according to Mattias strategy (to be improved)
-#    first_row = np.zeros((1, n_columns)) # INT_TIME, N_AV + ANGLES
-#    first_row[0,0] = int_time
-#    first_row[0,1] = Nspectra
-    # First columns will be the wavelengths, second the dark spectra, the rest the angles
-#    data = np.zeros((LEN_WAVELENGTHS, n_columns)) # 2028 is the length of the output vector
-    
+
     # Open the port again, just in case, and configure with the current integration time
     flame.open()
     flame.config(int_time, n_spectra = Nspectra)
@@ -406,9 +401,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     flame.set_background(temp)
     TRACES[0] = go.Scatter(x = WAVELENGTHS, y = temp, name = 'dark', mode = 'lines')
     # Saving the data in the new scheme
-    write_to_file(time()-start_time, np.nan, temp, path)
-    # Saving the data in Mattias's scheme   
-#    data[:,1] = temp            
+    write_to_file(time()-start_time, np.nan, temp, path)       
                   
     # Open the shutter
     gonio.move_shutter()
@@ -423,12 +416,10 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     CURRENT_ANGLE.append(0.0)
     # Saving the data in the new scheme
     write_to_file(time()-start_time, 0.0, temp, path)    
-    # Saving the data in Mattias's scheme   
-#    data[:,2] = temp   
-#    first_row[0,2] = 0.0
     
     # Starting measurement. First, move to the last position
-    out_angle = gonio.move_angle(-1 * angle_max)
+    out_angle = gonio.move_angle(round(-1 * angle_max, 4))
+    
     sleep(WAIT_TIME*2) # Wait long enough for the movement to finish
     
     #Initialize the error made
@@ -446,8 +437,6 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         if np.any(temp > SATURATION_COUNTS): print('WARNING: Some values are saturating...')
         # Saving the data in the new scheme
         write_to_file(time()-start_time, current_angle, temp, path)
-        # Saving the data in Mattias's scheme   
-#        data[:, k + 3] = temp
         
         # Plotting globals
         TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines')
@@ -470,9 +459,6 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
-    # Saving the data in Mattias's scheme       
-#    first_row[0,k + 4] = current_angle
-#    data[:,k + 4] = temp
     
     # Plotting globals
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines'))
@@ -481,7 +467,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 
     
     # Going back to initial angle
-    back_angle = -1.0 * abs(current_angle)
+    back_angle = round(-1 * abs(current_angle), 4)
     out_angle = gonio.move_angle(back_angle)
     current_angle -= out_angle
 
@@ -493,9 +479,6 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
-    # Saving the data in Mattias's scheme        
-#    first_row[0,k + 5] = current_angle
-#    data[:, k + 5] = temp
     
     # Plotting globals    
     TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = '0°', mode = 'lines'))
@@ -505,14 +488,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Close shutter
     gonio.move_shutter()
     print('INFO: Measurement DONE!')
-    # Saving the data with Mattias' scheme
-#    ftimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
-#    data = np.vstack([first_row, data])
-#    path2 = pjoin(folder, timestamp + '_'+ filename + '_Mattias.dat')
-#    header = itimestamp + '\n' + ftimestamp
-#    np.savetxt(path2, data, fmt = '% 8.2f', header= header)
-#    print('INFO: Measurement finished data saved at (Mattias scheme)\n\t' + path2)
-    
+
     return ' '
 
 @app.callback(Output('folder-exist', 'children'),
@@ -565,8 +541,8 @@ def set_integration_time(value):
               Input('button-move-right', 'n_clicks'),
               Input('button-move-shutter', 'n_clicks'),
               Input('button-set-bkg', 'n_clicks'),
-              Input('button-autozero', 'n_clicks'),
-              State('input-step-angle','value')])
+              Input('button-autozero', 'n_clicks')],
+              [State('input-step-angle','value')])
 def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero, angle_step):
     global gonio, traces
     # Determine which button has been clicked
@@ -577,9 +553,13 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero, angle_
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     if button_id == 'button-move-left':
-        gonio.move_angle(round(angle_step,4))
+        tangle = round(angle_step,4)
+        print(f'INFO: Moving {tangle:.2f}° counter-clockwise.')
+        gonio.move_angle(tangle)
     elif button_id == 'button-move-right':
-        gonio.move_angle(round(-1.0 * angle_step,4))
+        tangle = round(-1.0 * angle_step,4)
+        print(f'INFO: Moving {tangle:.2f}° clockwise.')
+        gonio.move_angle(tangle)
     elif button_id == 'button-move-shutter':
         gonio.move_shutter()
     elif button_id == 'button-set-bkg':
@@ -608,11 +588,40 @@ def gonio_and_spectra_functions(nleft, nright, nshutter, nbkg, nautozero, angle_
         
 
 if __name__ == '__main__':
+   # Default values
+    debug = True
+    port = 8051
+    user_reloader = False
+    argv = sys.argv[1:]
+    
     try:
-        app.run_server(debug = True, port = PORT, use_reloader = False)
-    except KeyboardInterrupt as e:
-        print(e)
+        options, args = getopt.getopt(argv, "p:d:r:",
+                                   ["port =",
+                                    "debug =",
+                                    "user_reloader = "])
         
+        
+        for name, value in options:
+            if name in ['-d', '--debug']:
+                if value.lower() in ['true', '1']:
+                    debug = True
+                else:
+                    debug = False       
+            elif name in ['-p', '--port']:
+                port = value
+            elif name in ['-r', '--user_reloader']:
+                if value.lower() in ['true', '1']:
+                    user_reloader = True
+                else:
+                    user_reloader = False
+      
+        app.run_server(debug = debug, port = port, use_reloader = user_reloader)
+    
+    except KeyboardInterrupt:
+        print("Program terminated.")
+    except Exception as e:
+        print(e)
+   
     if flame is not None:
         flame.close()   
     if gonio is not None:
