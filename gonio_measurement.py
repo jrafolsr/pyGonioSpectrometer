@@ -8,7 +8,6 @@ Created on Thu Jun 11 15:25:55 2020
 from os.path import join as pjoin
 from time import sleep, time
 import numpy as np
-from matplotlib import pyplot as plt
 from datetime import datetime
 import winsound
 from pyGonioSpectrometer.instrumentation import list_ports, ArduinoMotorController, SpectraMeasurement, list_spectrometers
@@ -60,6 +59,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     # Initalizing some variables
     
     current_angle = 0.0
+    angle_max = round(angle_max, 4)
     angle_step = round(angle_step, 4)
     
     try:
@@ -72,15 +72,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
     
         n_angles = int(angle_max*100) // int(angle_step*100) + 1
         n_steps = (n_angles - 1) *2
-
-        # Prepraring the plot
-        if plot:
-            plt.ion() # Will update during the measurement
-            fig, ax = plt.subplots()
-            ax.set_ylabel('Counts')
-            ax.set_xlabel('Wavelength (nm)')
-            plot_measurement(fig, ax, [], [])
-        
+     
         # Timestamps for the header and filename
         itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
         timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
@@ -106,7 +98,6 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         # Saving the data in the new scheme
         write_to_file(time()-start_time, np.nan, temp, path)
       
-        if plot: plot_measurement(fig, ax, wavelengths, temp, 'dark')
         # Saving the data in Mattias's scheme
 #        data[:,1] = temp
         sleep(0.25)
@@ -123,11 +114,9 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, 0.0, temp, path)
-        
-        if plot: plot_measurement(fig, ax, wavelengths, temp, '0.0°')
-        
+
         # Move to the last position
-        out_angle = gonio.move_angle(-1.0 * angle_max)
+        out_angle = gonio.move_angle(round(-1 * angle_max, 4))
         
         # Initialize the error made in each step
         error = round(-1.0 * (angle_max - out_angle), 4) # Reversed error as we are going to change direction
@@ -147,9 +136,6 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
             # Check for any values higher than saturation
             if np.any(temp > 65535): print('WARNING: Some values are saturating. Consider lowering the integration time.')
             
-            # Plot the data
-            if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
-            
             # Calculating the current step to make
             current_step = angle_step + error
             # Moving the gonio
@@ -159,18 +145,17 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
             total += abs(out_angle)
             current_angle += out_angle
             
-            print(f'\rINFO: Step #{k+2:2d}, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |' + '#'* (k + 2) + ' '* (n_steps - k + 1) + f'| {(k+3)/(n_steps + 3)*100:3.0f} % Done...' , end =''  )
+            print(f'\rINFO: Step #{k+2:2d}, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |' + '#'* (k + 2) + ' '* (n_steps - k + 1) + f'| {(k+3)/(n_steps + 3)*100:3.0f} % Done...' , end ='')
             sleep(WAIT_TIME)
         
         # Take last angle spectra       
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, current_angle, temp, path)
-        
-        if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
-        
+         
         # Go back to zero
-        back_angle = -1.0 * abs(current_angle)
+        back_angle = round(-1 * abs(current_angle), 4)
+
         out_angle = gonio.move_angle(back_angle)
         current_angle -= out_angle
         
@@ -182,9 +167,6 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
         write_to_file(time()-start_time, current_angle, temp, path)
-
-        
-        if plot: plot_measurement(fig, ax, wavelengths, temp, f'{current_angle:.1f}°')
         
         # Closing shutter
         print('INFO: Closing shutter')
@@ -198,7 +180,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print('INFO: The angle-scan has been cancelled by the user. Going back to 0°.')
         if gonio != None:
             # Go back to since the spectrogoniometer movement has been cancelled.
-            back_angle = -1.0 * current_angle          
+            back_angle = round(-1 * abs(current_angle), 4)     
             out_angle = gonio.move_angle(back_angle)
             gonio.move_shutter()
             
@@ -207,7 +189,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print('INFO: Some error has ocurred during the angle-scan. Going back to 0°.')
         if gonio != None:
             # Go back to since some error has occurred during the gonio measurement
-            back_angle = -1.0 * current_angle
+            back_angle = round(-1 * abs(current_angle), 4)
             out_angle = gonio.move_angle(back_angle)
             gonio.move_shutter()
     finally:
@@ -216,17 +198,6 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         if flame != None:
             flame.close()
         
-        
-def plot_measurement(fig, ax, x, y, label = None):
-    """
-    Plots the spectra given the figure and axis handlers together with the x, and y data.
-    The pause is needed to allow the live-plotting.
-    """
-    ax.plot(x,y, label = label)
-    if label is not None:
-        ax.legend()
-    plt.pause(0.25)
-    
 def write_to_file(etime, angle, data, file, debug = False):
     """
     Writes into a file the data taken at each gonio step. It takes as inputs the etime (ellapsed time) and angle as scalers, the data (vector) and the file (as the path where to save the data). The debug is just to print it on screen or not.
