@@ -20,7 +20,3 @@ ABS_CALFACTOR = 7.10e6 # Calibration from 15/07/2020
 
 # Pixel size of the McScience substrate
 PIXEL_SIZE = 4e-6 # m^2
-
-# Wavelength range to consider for integrations and data processing
-WL_MIN = 449 # Min. wl to consider 
-WL_MAX = 801 # Max. wl

@@ -14,6 +14,8 @@ from .data_processing import load_sri_file
 from os.path import join as pjoin
 import os
 
+
+
 def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
     """
     Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
@@ -54,6 +56,7 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
         wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
     else:
         wl_filter = [True] * len(wl)
+    
     if angle_max is not None:
         angle_filter = angles <= angle_max
     else:
@@ -66,7 +69,7 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
         for j in range(len(dAL)):
             data[i,j] = data[i,j][wl_filter, :]
             data[i,j] = data[i,j][:, angle_filter]
-    
+
     
     output = dict(wl  = wl,\
                   angles = angles,\
@@ -77,6 +80,66 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
 
     return output
 
+
+
+def load_simdata_python(file, wl_limit = None, angle_max = None, pos_lim = None):
+    """
+    Reads the *.mat file output structure from SETFOS-Python Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
+    
+    Parameters
+    ----------
+    file : str or path
+        Path to the *.mat file containing the error landscape
+    wl_limit: tuple, optional
+        2-element tuple with the lower and upper values of the wavelengths to load.
+    angle_max : int or float, optional
+        Maximum angle to load.
+    pos_lim :  tuple, optional
+        2-element tuple with the lower and upper values of the simulated emission zone position to load.
+    
+    Returns
+    -------
+    output:  dict
+        A dictionary with the fields wl, angle, ipos, dAL and data
+    
+    """
+    tdata = loadmat(file)
+    
+    wl  = tdata['wl_q'][0].astype(np.float)
+    angles = tdata['angle_q'][0].astype(np.float)
+    dAL = tdata['dAL_sim'][0].astype(np.float)
+    ipos = tdata['ipos_sim'][0].astype(np.float)
+    # The first of data is the ipos, the second is the thickness
+    data =  tdata['qnormSpecRadInt_sim_2D']
+    
+    if pos_lim is not None:
+        imin = gci(pos_lim[0], ipos)
+        imax = gci(pos_lim[1], ipos)
+        ipos = ipos[imin:imax]
+        data = data[imin:imax, :]
+    
+    if wl_limit is not None:
+        wl_slice = slice(abs(wl_limit[0] - wl).argmin(), abs(wl_limit[1] - wl).argmin())
+    else:
+        wl_slice = slice(None)
+    
+    if angle_max is not None:
+        angle_slice = slice(abs(angle_max - angles).argmin())
+    else:
+        angle_slice = slice(None)
+        
+    angles = angles[angle_slice]
+    wl = wl[wl_slice]
+    new_data = data[:, :, wl_slice, angle_slice]
+
+    output = dict(wl  = wl,\
+                  angles = angles,\
+                  dAL = dAL,\
+                  ipos = ipos,\
+                  data =  new_data)
+    
+
+    return output
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
     """
@@ -282,7 +345,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
             ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], '-', color = c[i], lw = 1)
             
             if i % 2 == 0:
-                ax.text(450,  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
+                ax.text(wl_sim.min(),  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
                 
         ax.set_xlabel('Wavelength (nm)')
         ax.set_ylabel('SRI (a.u.)')
@@ -463,7 +526,7 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     else:
         return error, lc_SimData
 
-def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png'):
+def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', legend_text = None):
     """
     Generates as many plots as requested comparing the expermimental data with the simulated SRI for the given EZ positions in the parameters positions.
         
@@ -479,9 +542,10 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png'):
         List with the position do you want to plot.
     fname : str, optional
         Filename prefix (can be a path too). If None is passed, it takes the input file as prefix. The default is None.
-    ext : str
+    ext : str, optional
         Figure file format, it accepts '.png' or '.svg'. The default is '.png'.
-    
+    legend_text: str, optional
+        Text to add in the legend. The default is None.
     Returns
     -------
     iNormExpSRI: numpy.array
@@ -528,7 +592,7 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png'):
     c =  sns.cubehelix_palette(N, start=.5, rot=-.75, reverse = True)
     
     for k in ipositions:
-        fig, ax = plt.subplots(figsize = (4,4))
+        fig, ax = plt.subplots(figsize = (3,3))
     
         for i in range(0,N, 1):
             kwargs = dict(color = c[i],lw  = 1)
@@ -541,13 +605,17 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png'):
             ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], ls = '-', **kwargs)
             
             if i % 2 == 0:
-                ax.text(450,  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
+                ax.text(wl_sim.min(),  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
                 
         ax.set_xlabel('Wavelength (nm)')
         ax.yaxis.set_ticklabels([])
         ax.set_ylabel('SRI (a.u.)')
         
-        text = 'd$_{AL} = $' + f'{thickness:.0f} ({thickness_sim:.0f}) nm\n'+'$\delta_{pos} = $' +f'{pos:.2f}'
+        if legend_text == None:
+            text = 'd$_{AL} = $' + f'{thickness:.0f} ({thickness_sim:.0f}) nm\n'+'EZP = ' +f'{pos:.2f}'
+        else:
+            text = legend_text
+            
         ax.text(0.98,0.98, text, va = 'top', ha = 'right', transform=ax.transAxes, fontsize = 'small')
         
         if fname is None:
