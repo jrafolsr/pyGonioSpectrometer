@@ -23,9 +23,10 @@ INITIAL_NSPECTRA = 10
 # Angular step, can't be zero or bigger than INITIAL_MAX_ANGLE
 INITIAL_STEP = 10 
 # Max angle gonio will do
-INITIAL_MAX_ANGLE = 80 
- # Waiting time between any gonio movement in seconds. 3 is quite a safe value, could be possibly lowered for faster measruements
-WAIT_TIME = 1.5
+INITIAL_MAX_ANGLE = 80
+
+ # Waiting time between any gonio movement in seconds. Deprecated, as teh RaspberryMotorController takes care of it, let's put it to 0.1 s just in case
+WAIT_TIME = 0.1
 
 #--------------------------------- Saving data---------------------------------
 # Default path to the directotry where the file will be saved, unless later modified by user

@@ -69,7 +69,6 @@ def gonio_time_series(filename, folder,\
     
     # General initial timer
     time_zero = time()
-    start_time_gonio = time() # Initialize, but does not really matter
     
     # Initialize counters and flags and gonio
     gonio = RaspberryMotorController()
@@ -82,6 +81,8 @@ def gonio_time_series(filename, folder,\
     
     while True:
         k += 1
+        # Gonio measurements
+        start_time_gonio = time()
         
         # Adjust the interval_luminance
         total_ellapsed_time = time() - time_zero
@@ -128,13 +129,15 @@ def gonio_time_series(filename, folder,\
                 sleep(0.5)
                 
                 for i in range(ninterval):
-                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance.', end = '')
+                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance...      ', end = '')
                     start_time = time()
                     
                     ellapsed_time_since_bkg = start_time - start_luminance_adquisition
                     
                     intensities = flame.get_averaged_intensities()
-                                
+                    
+                    print(f'\rINFO: Taking spectra n.{i + 1: 2d} at forward luminance... Done!', end = '')
+                    
                     # Check for any values higher than saturation
                     if np.any(intensities > SATURATION_COUNTS):
                         print('\n! WARNING: Some values are saturating. Consider lowering the integration time.')
@@ -179,8 +182,7 @@ def gonio_time_series(filename, folder,\
             
             print(f'\n\t<<<<< INFO: Taking measurement #{k:d} >>>>>')
 
-            # Gonio measurements
-            start_time_gonio = time()
+
             gonio_measurement(angle_max, angle_step,\
                       gonio,\
                       name_spectrometer, integration_time, n_spectra,\

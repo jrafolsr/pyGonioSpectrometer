@@ -357,6 +357,9 @@ class RaspberryMotorController():
         self.direction = 0 # Controls the change of direction to correct the error drift
         self.steps_counter = 0
         
+        # Gonio rotation speed (hardwarewise)
+        self.speed = 144 # deg/s
+        
         sleep(1)
         
     def start(self):
@@ -451,19 +454,22 @@ class RaspberryMotorController():
         # Makes sure the angle is always positive for the step calculation and adds the drift error
         
         angle = round(abs(round(angle, 1)) + self.angle_error, 4)
+        
+        self.current_angle = angle
+        
         steps, out_angle = self.angle2steps(angle, resolution = resolution)      
         
         if correct_drift: self.angle_error = round(angle - out_angle, 4)
         
+        
         self.move_steps(steps)
         
-        sleep(0.25)
-        
-        
-        
+
         return out_angle
     
     def move_steps(self, steps):
+        
+        itime = time()
         # Replacing the fix delay with the accelerator generator.
         delays = self.__accelerator__(steps)
         for delay in delays:
@@ -472,6 +478,12 @@ class RaspberryMotorController():
 #            sleep(delay)
             gpio.output(self.stepPIN, gpio.LOW)
             sleep(delay)
+        
+        # Waiting time to ensure the movement has finished, based on the hardware speed of the rotation
+        etime = time() - itime
+        
+        if etime < self.current_angle  / self.speed:
+            sleep(self.current_angle  /self.speed - etime)
             
         self.steps_counter += (-1)**(self.direction +2) *steps
         
@@ -509,6 +521,8 @@ class RaspberryMotorController():
         sleep(0.1)
         
         self.shutter_is_closed = False
+        self.current_angle = self.shutter_angle
+        
         self.move_steps(self.shutter_steps)
         sleep(2)
         
@@ -531,6 +545,7 @@ class RaspberryMotorController():
         sleep(0.1)
         self.shutter_is_closed = True
         self.shutter_counter += 1
+        self.current_angle = self.shutter_angle
         self.move_steps(self.shutter_steps)
         sleep(2)
         
