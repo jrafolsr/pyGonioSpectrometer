@@ -19,7 +19,9 @@ calibration_dir = Path(calibration_dir).parent / 'calibration_files'
 calibrations ={'arduino_gonio_1': dict(path_IRF = calibration_dir / 'IRF_FlameBlueFiber_wLens2945K.txt',\
                                        abs_calfactor = 7.10e6),\
                'raspberry_gonio2':dict(path_IRF = calibration_dir / 'IRF_Flame2OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference.txt',\
-                                       abs_calfactor = 6.08E6)}
+                                       abs_calfactor = 6.08E6),\
+               'raspberry_gonio2_old':dict(path_IRF = calibration_dir / 'IRF_Flame2OrangeFiber_wLens2945K.txt',\
+                                       abs_calfactor = 1.44E6)}
               
 # Output folders
 
@@ -45,9 +47,9 @@ def process_gonio_time_series(folder, current = None, angle_offset = 0.0, calibr
         folder that contains the data.
     current : float, optional
         Current in mA. The default is None.
-    angle_offset : TYPE, optional
+    angle_offset : float, optional
         Offset angle in deg. Input 'auto' for automatic calculation. The default is 0.0.
-    calibration : TYPE, optional
+    calibration : str, optional
         Either 'arduino_gonio_1' or 'raspberry_gonio2'. The default is 'raspberry_gonio2'.
     correct_time_drift : bool, optional
         Whether to correct or not the time drift. The default is True.
@@ -55,7 +57,7 @@ def process_gonio_time_series(folder, current = None, angle_offset = 0.0, calibr
     Raises
     ------
     Exception
-        DESCRIPTION.
+        If the fileiv is not found.
 
     Returns
     -------
@@ -320,13 +322,14 @@ def plot_fit_vs_experimental(folder, time_to_plot, error_landscape_file, name = 
     
     fname = folder / plots_folder / (name +'_fitting_best' + ext)
     
-    compare_data(file, thickness, simEL, [pos], fname = fname, ext = ext)
+    wl_exp, iNormExpSRI, ipos_sim, wl_sim, NormSimSRI = compare_data(file, thickness, simEL, [pos], fname = fname, ext = ext)
     
     # Plot
     fcomparison = folder /  plots_folder / (name +'_fitting_bad' + ext)
     
     compare_data(file, thickness, simEL, alternative_EZP, fname = fcomparison, ext = ext)
 
+    return simEL['angles'], wl_exp, iNormExpSRI, ipos_sim[0], wl_sim, NormSimSRI[0]
     
     
 def plot_EZP_vs_time(folder, ext = '.png'):

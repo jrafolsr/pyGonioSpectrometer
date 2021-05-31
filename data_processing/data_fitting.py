@@ -627,7 +627,7 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
             
         fig.savefig(fname.parent / (fname.stem + f'_comparison_delta={pos:.02f}' + ext), bbox_inches = 'tight')
         
-    return iNormExpSRI, ipos_sim[ipositions], NormSimSRI[ipositions]
+    return wavelengths, iNormExpSRI, ipos_sim[ipositions], wl_sim, NormSimSRI[ipositions]
 
 # def arbitrary_profile_fitting(input_file, model_data, thickness, step = 1, w0 = None, method = 'trf'):
 
