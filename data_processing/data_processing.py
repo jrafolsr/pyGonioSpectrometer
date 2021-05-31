@@ -11,11 +11,10 @@ It is being continually modified.
 last update:
     January 2021 (Joan): Add a lot of documentation. Removed some useless functionalities.
 """
-from os.path import join as pjoin
+from pathlib import Path
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-import os 
 import seaborn as sns
 from scipy.interpolate import interp1d
 from pyGonioSpectrometer.data_processing.calibration import path_IRF, path_eye_response, PIXEL_SIZE, ABS_CALFACTOR
@@ -68,10 +67,15 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
         iTime, IntTime, Nscans, L0, CE, EQE, Lamb_Corr_Factor, Angles, Wavelengths, SpecRadInt,SpecLumInt,LumInt, LumIntNorm, Luminance,LuminanceNorm
         
     """ 
+    # Convert probable input file to Path object
+    file = Path(file)
     # Set the output folder
     if folder is None:
-        folder = os.path.dirname(file)
-    basename = os.path.basename(file)[:-4]
+        folder = file.parent
+    else:
+        folder = Path(folder)
+        
+    basename = file.stem
     
     # Load calibration files
     IRF = np.loadtxt(path_IRF, usecols = 1, unpack=True)
@@ -127,7 +131,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
             ax.set_ylabel('Rel. change radiant intensity (%)')
             ax.set_title('Time stability of forward angle')
             ax.legend()
-            fig.savefig(pjoin(folder, basename + '_time-drift.png'), bbox_inches = 'tight')
+            fig.savefig(folder /  (basename + '_time-drift.png'), bbox_inches = 'tight')
          
     # Get the indices that will sort the data based on angles and sort the data
     isort =  Angles.argsort() 
@@ -182,9 +186,9 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
     EQE = eqe_calculator(Wavelengths, Angles, SpecRadInt, current) if current != None else np.nan
     
     # Lambertian factor calculation
-    Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot, file_id = pjoin(folder, basename))
+    Lamb_Corr_Factor = lambertian_correction_factor(Angles, LumIntNorm, plot  = plot, file_id = folder / basename)
     
-    text = f'# IRF_file: {path_IRF:s}\n'
+    text = f'# IRF_file: {path_IRF}\n'
     text += f'# correct_time_drift: {correct_time_drift}\n'
     text += f'# ABS_CALFACTOR: {abs_calfactor:4.2e}\n'
     text += f'# angle_offset = {angle_offset:.2f}°\n'
@@ -199,7 +203,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
         print(text)
     
     # Saving the integrated part of the data
-    fintegrated = pjoin(folder, basename + '.integrated')
+    fintegrated = folder / (basename + '.integrated')
     with open(fintegrated, 'w') as f:
         f.write(text)
     tdata = np.vstack((vTimes, Angles, LumInt, LumIntNorm, Luminance, LuminanceNorm)).T
@@ -210,7 +214,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
         np.savetxt(f, tdata, fmt = '% 10.6g\t', header = header)
     
     # Saving the spectral part of the data
-    fradiometric = pjoin(folder, basename + '.sri')
+    fradiometric =  folder / (basename + '.sri')
     n = len(Angles)
     with open(fradiometric, 'w') as f:
         tdata = np.hstack((np.nan, vTimes))
@@ -223,7 +227,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
     
     # I do not need to save the photometric spectral part of the data, do I?
     # # Saving the spectral part of the data
-    # fphotometric = pjoin(folder, basename + '.sli')
+    # fphotometric = folder 7 ( basename + '.sli')
     # n = len(Angles)
     # with open(fphotometric, 'w') as f:
     #     tdata = np.hstack((np.nan, vTimes))
@@ -235,7 +239,7 @@ def process_goniodata(file, angle_offset = 0.0, current = None, plot = False,\
     #     np.savetxt(f, tdata, fmt = fmt, header = 'Wavelengths\t AngularSpectralLuminousIntensity', delimiter='\t')
     
     if plot:
-        plot_sri_map(pjoin(folder, basename + '.sri'))
+        plot_sri_map(folder / ( basename + '.sri'))
     
     return iTime, IntTime, Nscans, L0,CE, EQE, Lamb_Corr_Factor,\
             Angles, Wavelengths, SpecRadInt,SpecLumInt, \
@@ -289,14 +293,15 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
         t0 = np.loadtxt(files[0], max_rows = 1, dtype = np.datetime64)
    
     
-    for i, file in enumerate(files):
+    for i, file in enumerate(files): 
+        file = Path(file)
         t1 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
         # Get the rest, vTimes, Angles, Wavelengths, DarkSpectra and MeasSpectra
         data = np.loadtxt(file, skiprows = 3)
         aTimes = data[2:,0]
         
         # Distinguish the reading mode between a L0 (forward luminance file) and the gonio file (where I take only the 0 angle measurements (0, middle and last))
-        if file[-6:] == 'L0.dat':
+        if str(file)[-6:] == 'L0.dat':
             integration_times = data[2:,1]
             integration_times = integration_times.reshape((len(integration_times), 1))
             Wavelengths, DarkSpectra, MeasSpectra =  data[0,2:], data[[1],2:], data[2:,2:]
@@ -308,7 +313,7 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
             MeasSpectra = MeasSpectra[ff,:]
             # Inform the user that there is some saturated spectra
             if (ff == False).any():
-                print(f'INFO: Skiping saturated spectra in file: "{os.path.basename(file)}"')
+                print(f'INFO: Skiping saturated spectra in file: "{file.name}"')
             # Continute with the next iteration if there is not data to process
             if (MeasSpectra.shape[0] == 0): 
                 continue 
@@ -356,9 +361,11 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
     header += '\nRel.Time(s) \t  Luminance(cd/m2) \t SRI(W/nm/sr)'
     
     if folder is None:
-        folder = os.path.dirname(files[0])
+        folder = Path(files[0]).parent
+    else:
+        folder = Path(folder)
     
-    np.savetxt(pjoin(folder, 'spectral_evolution.evolution'), data_to_save, header = header, fmt = '%10.6g')
+    np.savetxt(folder / 'spectral_evolution.evolution', data_to_save, header = header, fmt = '%10.6g')
    
     return vtimes, vluminances
 
@@ -372,6 +379,7 @@ def plot_sri_map(file):
          File path to the *.sri-file generated by the process_goniodata.
 
     """
+    file = Path(file)
     
     wavelength, angle, sri = load_sri_file(file)
     # Average the three "zero" points
@@ -402,7 +410,7 @@ def plot_sri_map(file):
     
     plt.colorbar(cb, ax = ax)
     
-    fig.savefig(file[:-4] + '_map.png', bbox_inches = 'tight')
+    fig.savefig(file.parent / (file.stem + '_map.png'), bbox_inches = 'tight')
     
 
 def plot_spectral_evolution(file, tmin = 0.0, tmax = np.inf, times = None, path = None, title = 'Spectral evolution'):
@@ -481,8 +489,8 @@ def plot_spectral_evolution(file, tmin = 0.0, tmax = np.inf, times = None, path 
     ax.set_title(title)
     
     if path is None:
-        folder = os.path.dirname(file)
-        path = pjoin(folder, f'spectral-evolution_times={tmin:.0f}-{tmax:.0f}s.png')
+        folder = Path(file).parent
+        path = folder / f'spectral-evolution_times={tmin:.0f}-{tmax:.0f}s.png'
     
     fig.savefig(path, bbox_inches  = 'tight')
         
@@ -555,6 +563,8 @@ def lambertian_correction_factor(angle, Iph, plot = False, file_id = 'lambertian
         Lambertian_CorrFact : float
             Lambertian correction factor.
     """
+    file_id = Path(file_id)
+    
     # First, artificially add the -90 and 90° values, with value zero and average the zeros (as there are three)
     N = int((len(angle) - 1) / 2)
     neg_a = slice(0,N-1)
@@ -591,7 +601,7 @@ def lambertian_correction_factor(angle, Iph, plot = False, file_id = 'lambertian
         
         ax.legend(fontsize = 'small', bbox_to_anchor=(1, 1.05), ncol =2)
  
-        fig.savefig(file_id + '_angular-profile.png', bbox_inches = 'tight')
+        fig.savefig(file_id.parent / (file_id.stem + '_angular-profile.png'), bbox_inches = 'tight')
         
     return Lambertian_CorrFact
 
@@ -692,12 +702,12 @@ def plot_angular_emission(file, thickness = np.nan, ext = 'png'):
     None.
 
     """
-    
-    file_lumint = file + '.integrated'
+    file = Path(file)
+    file_lumint = file.parent / (file.stem + '.integrated')
     
     # Check for the file existance and raise exception if it doesn't
     
-    if not os.path.isfile(file_lumint):
+    if not file_lumint.exists():
         raise Exception(f'File {file_lumint} does not exist.')
     
     angles, luminous_intensity = np.loadtxt(file_lumint, usecols= (1,3), unpack = True, skiprows=12) 
