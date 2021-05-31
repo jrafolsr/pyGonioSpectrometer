@@ -13,6 +13,7 @@ import seaborn as sns
 from .data_processing import load_sri_file
 from os.path import join as pjoin
 import os
+from pathlib import Path
 
 
 
@@ -119,11 +120,13 @@ def load_simdata_python(file, wl_limit = None, angle_max = None, pos_lim = None)
         data = data[imin:imax, :]
     
     if wl_limit is not None:
+        print("OBS! The wavelength filtering is not done properly, it works soso, fix it soon.")
         wl_slice = slice(abs(wl_limit[0] - wl).argmin(), abs(wl_limit[1] - wl).argmin())
     else:
         wl_slice = slice(None)
     
     if angle_max is not None:
+        print("OBS! The angle filtering is not done properly, it works soso, fix it soon.")
         angle_slice = slice(abs(angle_max - angles).argmin())
     else:
         angle_slice = slice(None)
@@ -514,7 +517,7 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     for i, w in enumerate(weights):
         lc_SimData += w * simEL_positions[i]
     
-    # lc_SimData /= lc_SimData[:,0].max()
+    lc_SimData /= lc_SimData[:,0].max()
     # Abs error
     # error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
     # Quadratic error
@@ -556,6 +559,7 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
         The normalized sim SRI for the queried positions
         
     """
+    file = Path(file)
     
     wavelengths, angles, sri = load_sri_file(file)
     
@@ -565,7 +569,7 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
     ipos_sim = simEL['ipos']
     simData = simEL['data']
     
-    iNormExpSRI = interpolate_expdata(sri, wavelengths, angles, wl_sim, angles_sim)
+    iNormExpSRI = interpolate_expdata(sri, wavelengths, angles, wavelengths, angles_sim)
     
     # Find the simulation data according to the input thickness   
     ithickness = gci(thickness, dAL_sim)
@@ -602,7 +606,7 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
             
             # label = f'{angles_sim[i]:}°'
     
-            ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], ls = '-', **kwargs)
+            ax.plot(wavelengths, offset - i*0.25 + iNormExpSRI[:,i], ls = '-', **kwargs)
             
             if i % 2 == 0:
                 ax.text(wl_sim.min(),  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
@@ -619,9 +623,9 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
         ax.text(0.98,0.98, text, va = 'top', ha = 'right', transform=ax.transAxes, fontsize = 'small')
         
         if fname is None:
-            fname = file[:-4] 
+            fname = file.stem
             
-        fig.savefig(fname + f'_comparison_delta={pos:.02f}' + ext, bbox_inches = 'tight')
+        fig.savefig(fname.parent / (fname.stem + f'_comparison_delta={pos:.02f}' + ext), bbox_inches = 'tight')
         
     return iNormExpSRI, ipos_sim[ipositions], NormSimSRI[ipositions]
 
