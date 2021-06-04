@@ -359,7 +359,7 @@ class RaspberryMotorController():
         
         # Gonio rotation speed (hardwarewise)
         self.speed = 144 # deg/s
-        
+        self.sleep_offset = 0.1
         sleep(1)
         
     def start(self):
@@ -482,9 +482,10 @@ class RaspberryMotorController():
         # Waiting time to ensure the movement has finished, based on the hardware speed of the rotation
         etime = time() - itime
         
-        if etime < self.current_angle  / self.speed:
-            sleep(self.current_angle  /self.speed - etime)
-            
+        sleepting = self.sleep_offset + self.current_angle  / self.speed
+        if etime <  sleepting:
+            sleep(sleepting - etime)
+          
         self.steps_counter += (-1)**(self.direction +2) *steps
         
 #        print(f'INFO: Total number of steps perfomed: {self.steps_counter:d}')
