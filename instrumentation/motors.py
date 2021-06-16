@@ -342,7 +342,7 @@ class RaspberryMotorController():
         
         self.pinout = pinout
         self.stepPIN, self.dirPIN, self.enPIN = pinout
-        self.angle_error = 0.00
+        self.angle_error = round(0.00, 4)
         
         self.delay = delay
         self.shutter_angle = int(180)
@@ -448,7 +448,7 @@ class RaspberryMotorController():
         if correct_drift:
             if self.direction != direction:
                 # A change in the direction has occurred, so the error needs to be reversed
-                self.angle_error *= -1
+                self.angle_error *= round(-1, 4)
                 self.direction = direction
 
         # Makes sure the angle is always positive for the step calculation and adds the drift error
