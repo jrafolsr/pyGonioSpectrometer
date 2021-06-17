@@ -24,7 +24,6 @@ calibrations ={'arduino_gonio_1': dict(path_IRF = calibration_dir / 'IRF_FlameBl
                                        abs_calfactor = 1.44E6)}
               
 # Output folders
-
 processed_folder = 'processed-data'
 fits_folder = 'fits'
 plots_folder = 'plots'
@@ -76,7 +75,11 @@ def process_gonio_time_series(folder, current = None, angle_offset = 0.0, calibr
             shutil.move(f, folder / raw_folder / f.name)
         files = list((folder / raw_folder).glob('*_time-series.dat'))
         filesL0 = list((folder / raw_folder).glob('*_time-series*.dat'))
-        
+    
+    # Sort the files by name (and therfore time), do not assumed that glob returns them sorted (e.g. not in Linux at least)
+    files = sorted(files)
+    filesL0 = sorted(filesL0)
+    
     # Assuming there is only one txt file and that it is the log
     iv_files = list(folder.glob('*.txt'))
     if len(iv_files) == 0:
@@ -259,10 +262,10 @@ def fit_data_time_series(folder, thickness, error_landscape_file, folder_cal = c
     error_landscape_dir.mkdir() if not  error_landscape_dir.exists() else None
          
     # Files
-    files = list((folder / processed_folder).glob('*_time-series.sri'))
+    files = sorted(list((folder / processed_folder).glob('*_time-series.sri')))
     
     # Get the times relative to the time t0
-    vtimes = create_times_vector(t0, list((folder / raw_folder).glob('*_time-series.dat')))
+    vtimes = create_times_vector(t0, sorted(list((folder / raw_folder).glob('*_time-series.dat'))))
     
     output = np.zeros((len(files),7))
     
@@ -306,7 +309,7 @@ def plot_fit_vs_experimental(folder, time_to_plot, error_landscape_file, name = 
     
     # Files to plot and EZP for that file
     index2plot = (abs(time_to_plot - vtimes).argmin())
-    files = list((folder / processed_folder).glob('*_time-series.sri'))
+    files = sorted(list((folder / processed_folder).glob('*_time-series.sri')))
     pos = vpos[index2plot]
     file = files[index2plot]
     
