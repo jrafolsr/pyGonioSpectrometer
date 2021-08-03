@@ -529,7 +529,7 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     else:
         return error, lc_SimData
 
-def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', legend_text = None):
+def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', legend_text = None, color_palette = None):
     """
     Generates as many plots as requested comparing the expermimental data with the simulated SRI for the given EZ positions in the parameters positions.
         
@@ -593,8 +593,12 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
     N = len(angles_sim)
     offset = 0.25 * (N-1)
     
-    c =  sns.cubehelix_palette(N, start=.5, rot=-.75, reverse = True)
-    
+    if color_palette == None:
+        c =  sns.cubehelix_palette(N, start=.5, rot=-.75, reverse = True)
+    else:
+        c = color_palette
+    print(N)
+        
     for k in ipositions:
         fig, ax = plt.subplots(figsize = (3,3))
     
