@@ -334,7 +334,7 @@ def process_L0(files, t0 = None, path_IRF = path_IRF, path_eye_response = path_e
         Wavelengths = Wavelengths[filt_by_wl]
         SpecRadInt = SpecRadInt[:, filt_by_wl]
         
-        if i == 0:
+        if not ('data_to_save' in locals()):
             data_to_save = Wavelengths.reshape((1, len(Wavelengths)))
         data_to_save = np.concatenate([data_to_save,SpecRadInt])
         

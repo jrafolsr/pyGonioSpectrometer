@@ -85,6 +85,9 @@ def process_gonio_time_series(folder, current = None, angle_offset = 0.0, calibr
     files.sort()
     filesL0.sort()
     
+    if len(filesL0) == 0: print('WARNING: No L0 files found, not a big deal, though.')
+    if len(files) == 0: raise Exception('No gonio files found, check if the path (folder) is correct')
+    
     # Assuming there is only one txt file and that it is the log
 
 
