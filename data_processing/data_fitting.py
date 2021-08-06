@@ -597,8 +597,7 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
         c =  sns.cubehelix_palette(N, start=.5, rot=-.75, reverse = True)
     else:
         c = color_palette
-    print(N)
-        
+
     for k in ipositions:
         fig, ax = plt.subplots(figsize = (3,3))
     
