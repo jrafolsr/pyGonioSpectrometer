@@ -1,0 +1,45 @@
+/* Clear floats after the columns */
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+	
+.column {
+  margin :0;
+  float: left;
+  margin: 10px;
+}
+
+.left {
+  width: 45%;
+
+}
+
+.middle {
+  width: 100px;
+  text-align: center;
+  
+}
+
+.right {
+  width: 35%;
+
+}
+
+
+.button, button{
+	padding : 0 15px;
+	width: min-content;
+	margin : 10px 10px;
+
+}
+
+.container {
+	padding: 10px;
+	margin: 5px 0;
+	vertical-align: top;
+	text-align: left;
+	box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px;
+}
