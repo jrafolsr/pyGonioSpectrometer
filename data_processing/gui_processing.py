@@ -150,7 +150,7 @@ class ProcessingFolder(object):
             
             print('Done!')
             
-            return 'Data processed.'
+            return 'Data processed.\n'
         
     def create_times_vector(self):
         """Creates a time vector based on the processed gobio files"""
@@ -642,7 +642,10 @@ def reset_all(n_clicks):
     return folder, thickness, calibration
 
 @app.callback([Output('textarea-logger', 'value'),
-               Output('button-compare', 'disabled')],
+               Output('button-compare', 'disabled'),
+               Output('slider-time', 'disabled'),
+               Output('slider-time', 'max'),
+               ],
               [Input('current-input', 'value'),
                Input('input-thickness', 'value'),
                Input('dropdown-calibration', 'value'),
@@ -656,10 +659,13 @@ def reset_all(n_clicks):
                ],
               [State('textarea-logger', 'value'),
                State('dropdown-error-landscape', 'value'),
-               State('button-compare', 'disabled')])
+               State('button-compare', 'disabled'),
+               State('slider-time', 'disabled'),
+               State('slider-time', 'max'),
+               ])
 def update_processing_parameters(current, thickness, calibration, iv_file, angle_offset,\
                                  n_clicks, n_clicks2, n_clicks3,n_clicks4, n_click5,\
-                                 text, error_landscape_file, disable_comparing):
+                                 text, error_landscape_file, disable_comparing, disable_slider, max_slider):
         # Determine which button has been clicked
     ctx = dash.callback_context
 
@@ -688,15 +694,24 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
         text += f'Angle offset set to {angle_offset} selected.\n'
     
     elif button_id == 'button-process-folder':
-        text += p.process_data()
-        p.create_times_vector()
+        if p.files == []:
+            text += 'The folder does not contain any files to process'
+        else:
+            text += p.process_data()
+            p.create_times_vector()
     
     elif button_id == 'button-active-plot':
         if p.iv_file ==  None:
             text += 'Please select an IV-file from the dropdown menu.\n'
-        if p.files_processed == []:
-            text += 'Please, process the files first.\n'
             
+        N = len(p.files_processed)
+        if N == 0:
+            text += 'Please, process the files first.\n'
+        
+    
+        max_slider = (N - 1) if N > 0 else 0
+    
+        disable_slider = True if  max_slider == 0 else False
         disable_comparing = False
         
     elif button_id == 'input-thickness':
@@ -723,20 +738,10 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
     elif button_id == 'button-reset':
         text = ''
         disable_comparing = True
+        disable_slider = True
+        max_slider = 0
         
-    return text, disable_comparing
-
-
-@app.callback([Output('slider-time', 'max'),\
-               Output('slider-time', 'disabled')],
-              [Input('button-active-plot', 'n_clicks')])
-def activate_plotting(n_clicks):
-    N = len(p.files_processed)
-    
-    files_to_plot = (N - 1) if N > 0 else 0
-    
-    disabled = True if  files_to_plot == 0 else False
-    return files_to_plot, disabled
+    return text, disable_comparing, disable_slider, max_slider
 
 
 @app.callback([Output('textarea-files', 'value'),
