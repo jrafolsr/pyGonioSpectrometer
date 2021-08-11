@@ -60,6 +60,8 @@ class ProcessingFolder(object):
         self.file_time_luminance = None
         
     def check_folder(self, folder):
+        self.__init__()
+        
         self.folder = Path(folder)
 
         # Check if the folder contains proper files with *times-series* in the name
@@ -128,7 +130,7 @@ class ProcessingFolder(object):
             header += f'IRF_file: {path_IRF.name:s}\n'
             header += f'correct_time_drift: {self.correct_time_drift}\n'
             header += f'abs_calfactor: {abs_calfactor:4.2e}\n'
-            header += f'angle_offset = {self.angle_offset:.2f} deg\n'
+            header += f'angle_offset = {self.angle_offset}\n' if self.angle_offset == 'auto' else f'angle_offset = {self.angle_offset:.2f} deg\n'
             header +=  f't0 = {self.t0}\n'
             header += 'EllapsedTime(s)\tLuminance(cd/m2)'
             np.savetxt(self.folder / self.file_time_luminance, np.vstack([vtimes[1:], vluminances[1:]]).T, fmt = '%10.4f', header = header)
@@ -369,19 +371,9 @@ app.layout = html.Div(children =  [
         ),
         
         html.Div(className =  'column middle', children = [
-         daq.StopButton(id='button-process-folder',
-               disabled = False,
-               buttonText = 'process',
-               n_clicks = 0,
-               ),
          daq.StopButton(id='button-active-plot',
                disabled = False,
                buttonText = 'plot',
-               n_clicks = 0,
-               ),
-         daq.StopButton(id='button-fit',
-               disabled = False,
-               buttonText = 'fit',
                n_clicks = 0,
                ),
          daq.StopButton(id='button-compare',
@@ -398,31 +390,48 @@ app.layout = html.Div(children =  [
         ]),  
         html.Div(id  = 'div-inputs', className = 'column right', children = [
         html.Div(id = 'input-process-container', className = 'container', children = [
-              html.P([
-                  html.H6('Processing input'),
-                  'Folder: ',          
-                  dcc.Input(id="folder-input",
-                            type="text",
-                            placeholder="Folder",
-                            value = str(Path.home()),
-                            size = '40',
-                            debounce = True)
-                  ]),
-                  html.P(['Input current (mA):',              
-                    dcc.Input(
-                          id = "current-input",
-                          type = 'number',
-                          value = 1,
-                          size = '5',
-                          debounce = True),
-                    ' Angle offset:',              
-                    dcc.Input(
-                          id = "angle-offset-input",
-                          type = 'number',
-                          value = 0.0,
-                          size = '5',
-                          debounce = True)
+                html.Div([
+                    html.Div([
+                        daq.StopButton(id='button-process-folder',
+                           disabled = False,
+                           buttonText = 'process',
+                           n_clicks = 0),
+                        
+                        'Folder: ',          
+                        dcc.Input(id="folder-input",
+                                  type="text",
+                                  placeholder="Folder",
+                                  value = str(Path.home()),
+                                  size = '40',
+                                  debounce = True)
+                        ], style = {'width' : '60%', 'display' : 'inline-block','vertical-align' : 'top'}),
+                    html.Div([
+                          'Input current (mA):',              
+                          dcc.Input(
+                                id = "current-input",
+                                type = 'number',
+                                value = 1,
+                                size = '5',
+                                debounce = True),
+                          html.Br(),
+                          ' Angle offset (°):',              
+                          dcc.Input(
+                                id = "angle-offset-input",
+                                type = 'number',
+                                value = 0.0,
+                                size = '5',
+                                debounce = True),
+                          dcc.RadioItems(
+                                  id = 'radio-angle-offset',
+                                  options=[
+                                      {'label': 'Fix offset', 'value': 0},
+                                      {'label': 'Auto offset', 'value': 'auto'}
+                                  ],
+                                  value = 0
+                              )  
+                      ], style = {'width' : '40%', 'display' : 'inline-block','vertical-align' : 'middle'}),
                     ]),
+
               html.Div( [
                   html.Div( children = [
                       'Available raw files:',
@@ -443,7 +452,7 @@ app.layout = html.Div(children =  [
                           )
                     ], style = {'display': 'inline-block', 'width': '45%', 'padding-left' : '5px'}
                     )
-                  ]),
+                  ], style = {'padding-top' : '10px'}),
                   'Pick IV file:',
                   dcc.Dropdown(id  = 'dropdown-IV-files',
                     options = [],
@@ -463,22 +472,26 @@ app.layout = html.Div(children =  [
                     
                   ]),
             html.Div( id = 'fits-input-container', className = 'container', children = [
-                  html.H6('Fitting parameters'),
-                  'Thickness (nm): ',
-                  dcc.Input(
-                      id = "input-thickness",
-                      type = 'number',
-                      value = None,
-                      size = '5',
-                      debounce = True),
-                  html.P('Simulation file:'),
-                  dcc.Dropdown(id  = 'dropdown-error-landscape',
-                    options = [{'label' : 'ErrorLandscape_newPL', 'value' : str(calibration_dir /'ErrorLandscape_newPL.mat')}],
-                    value = str(calibration_dir /'ErrorLandscape_newPL.mat'),
-                    placeholder = 'Pick the error landscape file',
-                    style = {'width' : '200'},
-                    searchable = False
-                ),
+                daq.StopButton(id='button-fit',
+                       disabled = False,
+                       buttonText = 'fit',
+                       n_clicks = 0,
+                       style = {'display' : 'inline-block'}),
+                      'Thickness (nm): ',
+                      dcc.Input(
+                          id = "input-thickness",
+                          type = 'number',
+                          value = None,
+                          size = '5',
+                          debounce = True),
+                      html.P('Simulation file:'),
+                      dcc.Dropdown(id  = 'dropdown-error-landscape',
+                        options = [{'label' : 'ErrorLandscape_newPL', 'value' : str(calibration_dir /'ErrorLandscape_newPL.mat')}],
+                        value = str(calibration_dir /'ErrorLandscape_newPL.mat'),
+                        placeholder = 'Pick the error landscape file',
+                        style = {'width' : '200'},
+                        searchable = False
+                        ),
               ]),
             html.Div( id = 'debugger-container', className = 'container', children = [
                   html.H6('Debugger'),
@@ -498,12 +511,13 @@ app.layout = html.Div(children =  [
               [Input('button-active-plot', 'n_clicks'),
                Input('button-compare', 'n_clicks'),
                Input('button-reset', 'n_clicks'),
+               Input('folder-input', 'value'),
                Input('slider-time', 'value')],
               [State('live-update-graph', 'figure'),
                State('dropdown-error-landscape', 'value')],
               prevent_initial_call =  True)
 
-def update_plot(n_clicks, n_clicks2,n_clicks3, ifile, figure, error_landscape_file):
+def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, error_landscape_file):
 
 
     # Determine which button has been clicked
@@ -514,7 +528,7 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, ifile, figure, error_landscape_fi
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
-    if button_id == 'button-reset':
+    if button_id in['button-reset', 'folder-input'] :
         figure['data'] = plot_data
         figure['layout']['annotations'][0]['text'] = 'Transient'
         figure['layout']['annotations'][1]['text'] = ''
@@ -691,7 +705,7 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
     
     elif button_id == 'angle-offset-input':
         p.angle_offset = angle_offset
-        text += f'Angle offset set to {angle_offset} selected.\n'
+        text += f'Angle offset set to {angle_offset}.\n'
     
     elif button_id == 'button-process-folder':
         if p.files == []:
@@ -779,7 +793,18 @@ def load_files(folder):
             value_iv_file = None
         return text, options_iv_files, value_iv_file, text_processed
     
+@app.callback([Output('angle-offset-input', 'disabled'),
+               Output('angle-offset-input', 'value')],
+              [Input('radio-angle-offset', 'value')])
+def set_angle_offset_mode(value):
+    disabled = False
     
+    if value =='auto':
+        disabled = True
+    else:
+        value = 0.0
+    
+    return disabled, value
     
 
 if __name__ == '__main__':
