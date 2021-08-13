@@ -448,12 +448,15 @@ class RaspberryMotorController():
         if correct_drift:
             if self.direction != direction:
                 # A change in the direction has occurred, so the error needs to be reversed
-                self.angle_error *= round(-1, 4)
+                self.angle_error *= round(-1, 4)   
                 self.direction = direction
-
-        # Makes sure the angle is always positive for the step calculation and adds the drift error
+        else:
+            # If drift correction is False, we assume we want to move the exact input angle, so we reset the error to zero
+            self.angle_error = round(0,4) 
+            self.direction = direction
         
-        angle = round(abs(round(angle, 1)) + self.angle_error, 4)
+        # Makes sure the angle is always positive for the step calculation and adds the drift error
+        angle = round(abs(round(angle, 4)) + self.angle_error, 4)
         
         self.current_angle = angle
         

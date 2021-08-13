@@ -491,7 +491,8 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     
     # Going back to initial angle
     back_angle = -1 * abs(current_angle)
-    out_angle = gonio.move_angle(back_angle)
+    # Moving back the exact angle we moved to set everything to the initial position, so correct_drift = False
+    out_angle = gonio.move_angle(back_angle, correct_drift = False)
     current_angle -= out_angle
 
     

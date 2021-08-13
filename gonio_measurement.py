@@ -12,13 +12,14 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 #import winsound # Does not work in Linux
 from pyGonioSpectrometer.instrumentation import list_ports, RaspberryMotorController, SpectraMeasurement, list_spectrometers
+from pyGonioSpectrometer.GonioSpec_init import WAIT_TIME
 
 # Parameters for the beeping, quite irrellevant, I'll consider to remove it
 frequency = 2000  # Set Frequency To 2500 Hertz
 duration = 1000  # Set Duration To 1000 ms == 1 second
 
 # Fixed parameters
-WAIT_TIME = 1.5
+#WAIT_TIME = 1.5
 N_WAVELENGTHS = 2028
 
 
@@ -173,7 +174,8 @@ def gonio_measurement(angle_max, angle_step,\
         
         # Go back to zero
         back_angle = -1 * abs(current_angle)
-        out_angle = gonio.move_angle(back_angle)
+        # Moving back the exact angle we moved to set everything to the initial position, so correct_drift = False
+        out_angle = gonio.move_angle(back_angle, correct_drift = False)
         current_angle -= out_angle
         
         print(f'\rINFO: Step #{k+3:2d}, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |' + '#'* (n_steps + 3) + f'| {(k+4)/(n_steps + 3)*100:3.0f} % Done...' , end ='\n'  )
