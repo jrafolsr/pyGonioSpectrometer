@@ -499,7 +499,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     sleep(WAIT_TIME * 2)
     
     # Taking last spectra at zero
-    print('\tINFO: Taking last spectra at  0°')
+    print(f'\tINFO: Taking last spectra at  {current_angle:.1f}°')
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
@@ -598,9 +598,9 @@ def gonio_and_spectra_functions(nshutter, nbkg, nautozero):
             x1 = np.linspace(x.min(),x.max(),101)
             y1 = pol2_sym(x1, *popt) * ymax
             TRACES.append(go.Scatter(x = x1, y = y1, name = 'fit', mode = 'lines', xaxis = 'x2', yaxis = 'y2'))
-            gonio.move_angle(x0, correct_drift = False)
+            out_angle = gonio.move_angle(x0, correct_drift = False)
             gonio.steps_counter = 0
-            print(f'INFO: Zero offset is {x0:.2f}°')
+            print(f'INFO: Zero offset is {x0:.2f}° and moved by {out_angle:.4f}')
         else: 
             print(f'ERROR: No data to fit')
         
