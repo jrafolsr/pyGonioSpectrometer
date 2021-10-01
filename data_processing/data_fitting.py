@@ -529,7 +529,7 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     else:
         return error, lc_SimData
 
-def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', legend_text = None, color_palette = None):
+def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', legend_text = None, color_palette = None, figsize = (3,3)):
     """
     Generates as many plots as requested comparing the expermimental data with the simulated SRI for the given EZ positions in the parameters positions.
         
@@ -599,24 +599,25 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
         c = color_palette
 
     for k in ipositions:
-        fig, ax = plt.subplots(figsize = (3,3))
+        fig, ax = plt.subplots(figsize = figsize)
     
         for i in range(0,N, 1):
             kwargs = dict(color = c[i],lw  = 1)
             
             pos = ipos_sim[k]
-            ax.plot(wl_sim, offset - i*0.25 + NormSimSRI[k][:,i],'--',  **kwargs)
-            
+
             # label = f'{angles_sim[i]:}°'
     
             ax.plot(wavelengths, offset - i*0.25 + iNormExpSRI[:,i], ls = '-', **kwargs)
+            
+            ax.plot(wl_sim, offset - i*0.25 + NormSimSRI[k][:,i],'--' , lw = 0.5, c = 'black', ls = (0, (5, 5)))
             
             if i % 2 == 0:
                 ax.text(wl_sim.min(),  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
                 
         ax.set_xlabel('Wavelength (nm)')
         ax.yaxis.set_ticklabels([])
-        ax.set_ylabel('SRI (a.u.)')
+        ax.set_ylabel('Emission (a.u.)')
         
         if legend_text == None:
             text = 'd$_{AL} = $' + f'{thickness:.0f} ({thickness_sim:.0f}) nm\n'+'EZP = ' +f'{pos:.2f}'
