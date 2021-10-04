@@ -16,19 +16,12 @@ import getopt
 import sys
 from pathlib import Path
 import shutil
-from pyGonioSpectrometer.data_processing import __file__ as calibration_dir
 from pyGonioSpectrometer.data_processing  import process_goniodata, process_L0, load_sri_file,interpolate_expdata, gci,load_simdata, error_landscape
+from pyGonioSpectrometer.data_processing import calibrations_dict, error_landscapes_dict, default_calibration, default_error_landscape
 import seaborn as sns
 ## Globals
 
-# Calibration files
-calibration_dir = Path(calibration_dir).parent / 'calibration_files'
-calibrations ={'arduino_gonio_1': dict(path_IRF = calibration_dir / 'IRF_FlameBlueFiber_wLens2945K.txt',\
-                                       abs_calfactor = 7.10e6),\
-               'raspberry_gonio2':dict(path_IRF = calibration_dir / 'IRF_Flame2OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference.txt',\
-                                       abs_calfactor = 6.08E6),\
-               'raspberry_gonio2_old':dict(path_IRF = calibration_dir / 'IRF_Flame2OrangeFiber_wLens2945K.txt',\
-                                       abs_calfactor = 1.44E6)}
+
     
 class ProcessingFolder(object):
     def __init__(self):
@@ -208,6 +201,7 @@ class ProcessingFolder(object):
         header = str(self.t0) +'\n'
         header += f'{self.thickness:.0f} +/- {ethickness:.0f}\n'
         header += ('{:^10s}\t'*3).format('Rel.Time(s)','EZP(bestFit)', 'RMSE')
+        header += f'\nModel: {Path(error_landscape_file).name}'
         np.savetxt(self.file_EZP_time, output, header = header, fmt = '%10.6g')    
         
         self.fitting_flag = True
@@ -241,7 +235,7 @@ class ProcessingFolder(object):
         data2save[1:, 0] = wavelengths
         data2save[1:, 1:] = iNormExpSRI
         
-        header = f'thickness_exp = {p.thickness:.1f} nm\nthickness_sim = {thickness_sim:.0f} nm\nEZP = {position:.2f}'
+        header = f'thickness_exp = {p.thickness:.1f} nm\nthickness_sim = {thickness_sim:.0f} nm\nEZP = {position:.2f}\nmodel:{Path(error_landscape_file).name}'
         
         sufix = f'_t={etime:.0f}s_dsim={thickness_sim:.0f}nm_EZP={position:.2f}_'
         
@@ -463,8 +457,8 @@ app.layout = html.Div(children =  [
                 ),
                   'Pick spectrometer calibration file:',
                   dcc.Dropdown(id  = 'dropdown-calibration',
-                    options = [{'label' : key, 'value' : key} for key in calibrations],
-                    value = None,
+                    options = [{'label' : key, 'value' : key} for key in calibrations_dict],
+                    value = default_calibration,
                     placeholder = 'Pick the calibration file',
                     style = {'width' : '200'},
                     searchable = False
@@ -484,10 +478,10 @@ app.layout = html.Div(children =  [
                           value = None,
                           size = '5',
                           debounce = True),
-                      html.P('Simulation file:'),
+                      html.P('Model:'),
                       dcc.Dropdown(id  = 'dropdown-error-landscape',
-                        options = [{'label' : 'ErrorLandscape_newPL', 'value' : str(calibration_dir /'ErrorLandscape_newPL.mat')}],
-                        value = str(calibration_dir /'ErrorLandscape_newPL.mat'),
+                        options = [{'label' : key, 'value' : value} for key, value in error_landscapes_dict.items()],
+                        value = None if default_error_landscape == None else error_landscapes_dict[default_error_landscape],
                         placeholder = 'Pick the error landscape file',
                         style = {'width' : '200'},
                         searchable = False
@@ -650,9 +644,8 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, err
               [Input('button-reset', 'n_clicks')])
 def reset_all(n_clicks):
     folder = str(Path.home())
-    p.__init__()
     thickness = None
-    calibration = None
+    calibration = default_calibration
     return folder, thickness, calibration
 
 @app.callback([Output('textarea-logger', 'value'),
@@ -693,7 +686,7 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
         text += f'Input current of {current:.2f} mA.\n'
     
     elif button_id == 'dropdown-calibration':
-        p.calibration = calibrations[calibration] if calibration != None else None 
+        p.calibration = calibrations_dict[calibration] if calibration != None else None 
         text += f'Calibration "{calibration}" selected.\n'
     
     elif button_id == 'dropdown-IV-files':
@@ -762,12 +755,14 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
               Output('dropdown-IV-files', 'options'),
               Output('dropdown-IV-files', 'value'),
               Output('textarea-processed-files', 'value')],
-              [Input('folder-input', 'value')],)
-def load_files(folder):
+              [Input('folder-input', 'value')],
+              State('dropdown-calibration', 'value'))
+def load_files(folder, calibration):
     folder = Path(folder)
     
     if not folder.exists():
         text = 'ERROR: The input folder does not exist'
+        p.__init__()
         return text, [], None, text
     else:
         if p.check_folder(folder):
@@ -787,6 +782,9 @@ def load_files(folder):
                     text_processed += f.name + '\n'
             else:
                 text_processed = 'If there are existing processed files they will be showed here.'
+            # Load the default calibration too
+            p.calibration = calibrations_dict[calibration] if calibration != None else None
+                
         else:
             text = text_processed = 'Check if you input the correct folder\n(It does not seem to contain any *time-series* file.)'
             options_iv_files = []
