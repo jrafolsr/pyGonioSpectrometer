@@ -17,7 +17,7 @@ frequency = 2000  # Set Frequency To 2500 Hertz
 duration = 1000  # Set Duration To 1000 ms == 1 second
 
 # Fixed parameters
-WAIT_TIME = 1.5
+WAIT_TIME = 0.2
 N_WAVELENGTHS = 2028
 
 

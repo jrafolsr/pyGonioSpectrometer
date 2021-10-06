@@ -25,7 +25,7 @@ INITIAL_STEP = 10
 # Max angle gonio will do
 INITIAL_MAX_ANGLE = 80 
  # Waiting time between any gonio movement in seconds. 3 is quite a safe value, could be possibly lowered for faster measruements
-WAIT_TIME = 1.5
+WAIT_TIME = 0.2
 
 #--------------------------------- Saving data---------------------------------
 # Default path to the directotry where the file will be saved, unless later modified by user

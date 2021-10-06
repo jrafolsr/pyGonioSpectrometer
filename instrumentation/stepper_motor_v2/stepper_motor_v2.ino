@@ -33,7 +33,8 @@ http://www.schmalzhaus.com/EasyDriver/Examples/EasyDriverExamples.html
 #define sEN 10    // Enable the stepper of the shutter
 
 #define DELAY 1
-
+#define DELAY_GONIO 500
+#define DELAY_OFFSET 150
 //Declare variables for functions
 
 int x;          // Dummy int variables for the loops
@@ -93,7 +94,7 @@ void loop() {
          
          if (Serial.read() == '\n'){
           MoveShutter(steps);
-          Serial.println("Movement finished");
+          /*Serial.println("Movement finished");*/
          }
       }
       else if (motor == 1){
@@ -115,7 +116,7 @@ void loop() {
             else if (rotation == 1) { /* Enables the gonio motor */
               digitalWrite(EN, LOW);
             }
-            Serial.println("Movement finished");
+           /*Serial.println("Movement finished");*/
           }
           else 
           {
@@ -126,11 +127,11 @@ void loop() {
             if (rotation == 1 || rotation == 2 )
             {
                MoveMotor(steps, rotation);
-               Serial.println("Movement finished");
+               /*Serial.println("Movement finished");*/
             }
             else
             {
-              Serial.println("Invalid code string");
+              /*Serial.println("Invalid code string");*/
             }
           }
         }   
@@ -161,11 +162,11 @@ void MoveMotor(int steps, int rotation){
   for(x= 0; x < steps; x++)  // Loop for the numer of desired steps
     {
       digitalWrite(gstep,HIGH); //Trigger one step
-      delay(DELAY);
+      delayMicroseconds(DELAY_GONIO);
       digitalWrite(gstep,LOW); //Pull step pin low so it can be triggered again
-      delay(DELAY);
-  
+      delayMicroseconds(DELAY_GONIO);
     }
+  delay(DELAY_OFFSET);   
 }
 
 // Function to set the resolution via the M1-M3 pins
