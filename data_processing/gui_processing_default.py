@@ -24,6 +24,7 @@ default_calibration = None
 
 error_landscapes_dict = {'ErrorLandscape_newPL(ref ITO/SY/Al)' : str(calibration_dir /'ErrorLandscape_newPL.mat'),\
                          'EL_model_ITO/PEDOT(40nm)/SY/Al' :  str(calibration_dir / 'EL_model_ITO-PEDOT-SY-Al.mat'),\
+                         'EL_model_ITO/SY/Ca(20nm)/Al' :  str(calibration_dir / 'EL_model_ITO-SY-Ca20-Al.mat'),\
                          'ErrorLandscape_newPL_p-pol' : str(calibration_dir /'ErrorLandscape_newPL_p-pol.mat'),\
                          'ErrorLandscape_newPL_s-pol' : str(calibration_dir /'ErrorLandscape_newPL_s-pol.mat'),\
                          'ErrorLanscape_newPL_281nm_parallel': str(calibration_dir /'ErrorLanscape_newPL_281nm_parallel.mat'),\
