@@ -90,14 +90,14 @@ class ArduinoMotorController():
         self.motor.write_termination = '\n' # important for the Arduino to understand the commands.
         # Clear the buffer
         self.motor.clear()
+        self.speed = 110 # deg/s
 
-        sleep(0.500)
+        sleep(2.0)
         
     def close(self):
         """
         Closes the resource
         """
-        self.motor.clear() 
         self.motor.close()
         
     def angle2steps(self, angle, resolution = 16, slow = True):
@@ -196,27 +196,33 @@ class ArduinoMotorController():
             
             string2arduino = f'1,{step:d},{direction:d},{res:d}' #EXPLAIN HERE
 #            print(string2arduino)
+            itime = time()
             self.motor.write(string2arduino)
             
-            unfinished = True
-            itime = time()
-            while unfinished:
-                try:
-                    unfinished = self.motor.bytes_in_buffer == 0
-                    # Temporary solution in case Arduino misses the command
-                    if (time() - itime) > 5:
-                        print('(WARNING: Failed to move the gonio, trying it again)')
-                        self.motor.write(string2arduino)
-                        itime = time()    
-                    sleep(0.01)
-                    
-                except KeyboardInterrupt:
-                    break
-                
-            self.motor.clear()
+#            unfinished = True
+#            itime = time()
+#            while unfinished:
+#                try:
+#                    unfinished = self.motor.bytes_in_buffer == 0
+#                    # Temporary solution in case Arduino misses the command
+#                    if (time() - itime) > 5:
+#                        print('(WARNING: Failed to move the gonio, trying it again)')
+#                        self.motor.write(string2arduino)
+#                        itime = time()    
+#                    sleep(0.01)
+#                    
+#                except KeyboardInterrupt:
+#                    break
+#                
+##            self.motor.clear()
 #            print('INFO: '  + self.motor.read())
+    # Waiting time to ensure the movement has finished, based on the hardware speed of the rotation
+        etime = time() - itime
         
-        sleep(0.25)
+        sleeping = 0.15 + angle  / self.speed
+        if etime <  sleeping:
+            sleep(sleeping - etime)
+
         
         return out_angle
     
@@ -262,24 +268,24 @@ class ArduinoMotorController():
         
         self.motor.write(f'0,{step:d}')
         
-        unfinished = True
-        itime = time()
-        while unfinished:
-            try:
-                unfinished = self.motor.bytes_in_buffer == 0
-                # Temporary solution to the shutter opening issue.
-                if (time() - itime) > 3:
-                    print('(WARNING: Failed to move shutter, trying it again)')
-                    self.motor.write(f'0,{step:d}')
-                    itime = time()
-                    
-                sleep(0.01)
-            except KeyboardInterrupt:
-                break
-        self.motor.clear()
+#        unfinished = True
+#        itime = time()
+#        while unfinished:
+#            try:
+#                unfinished = self.motor.bytes_in_buffer == 0
+#                # Temporary solution to the shutter opening issue.
+#                if (time() - itime) > 3:
+#                    print('(WARNING: Failed to move shutter, trying it again)')
+#                    self.motor.write(f'0,{step:d}')
+#                    itime = time()
+#                    
+#                sleep(0.01)
+#            except KeyboardInterrupt:
+#                break
+#        self.motor.clear()
             
 #        print('INFO: '  + self.motor.read())
-        sleep(0.5)
+        sleep(0.75)
 
             
     def disable_shutter(self):
