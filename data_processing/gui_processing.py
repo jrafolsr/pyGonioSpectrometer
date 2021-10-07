@@ -250,6 +250,15 @@ class ProcessingFolder(object):
         
         return angles_sim, wavelengths, iNormExpSRI, wl_sim, NormSimSRI, thickness_sim
 
+    def check_thickness_limits(self, thickness,error_landscape_file):
+        simEL = load_simdata(error_landscape_file, wl_limit=(450,800))
+        dAL_sim = simEL['dAL']
+        del(simEL)
+        if (dAL_sim.min() <= thickness) & (thickness <= dAL_sim.max()):
+            return 'Thickness within the simulation file limits.\n'
+        else:
+            return 'ERROR: Thickness beyond te simulation file limits.\n'
+
 p = ProcessingFolder()
 
 # Output folders
@@ -725,12 +734,13 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
         p.thickness = thickness
         if thickness != None:
             text += f'Input thickness of {thickness} nm.\n'
+            text += p.check_thickness_limits(thickness, error_landscape_file)
     
     elif button_id == 'button-fit':
         if p.thickness == None or p.t0 == None:
             text += 'Please define a thickness and/or an IV-file to proceed with the fitting.\n'
         else:
-            text += 'Data fitted.'
+            text += 'Data fitted.\n'
             print(error_landscape_file)
             p.fit_data_time_series(error_landscape_file)
     
