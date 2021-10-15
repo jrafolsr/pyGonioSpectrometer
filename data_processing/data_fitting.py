@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 
-def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
+def load_simdata(file, wl_limit = None, angle_max = 90, pos_lim = None):
     """
     Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
     
@@ -40,43 +40,74 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
     """
     tdata = loadmat(file)
     
-    wl  = tdata['wl_q'][0].astype(np.float)
-    angles = tdata['angle_q'][0].astype(np.float)
-    dAL = tdata['dAL_sim'][0].astype(np.float)
-    ipos = tdata['ipos_sim'][0].astype(np.float)
-    # The first of data is the ipos, the second is the thickness
-    data =  tdata['qnormSpecRadInt_sim_2D']
-    
-    if pos_lim is not None:
-        imin = gci(pos_lim[0], ipos)
-        imax = gci(pos_lim[1], ipos)
-        ipos = ipos[imin:imax]
-        data = data[imin:imax, :]
-    
-    if wl_limit is not None:
-        wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
+    # If generated with python load the dict in the following way
+    if 'generator' in tdata.keys():
+        if tdata['generator'] == 'python':
+            wl  = np.round(tdata['wl'][0],0)
+            angles = np.round(tdata['angles'][0], 0)
+            dAL = np.round(tdata['dAL'][0], 0)
+            ipos = np.round(tdata['ipos'][0], 4)
+            # The data in the python generated ErrorLandscape file is ipos (EZP), thicknesses, wavelengths and angles
+            data =  tdata['data']
+            
+            # Filter out unwanted ezp (ipos)
+            if pos_lim != None:
+                ff = (ipos >= pos_lim[0]) & (ipos <= pos_lim[1])
+                ipos = ipos[ff]
+                data = data[ff, :, :, :]
+            # Filter out unwanted wl
+            if wl_limit !=  None:
+                ff = (wl >= wl_limit[0]) & (wl <= wl_limit[1])
+                wl = wl[ff]
+                data = data[:, :, ff, :]
+            
+            # Filter out higher angles than angle_max
+            ff = angles <= angle_max
+            angles = angles[ff]
+            data = data[:, :, :, ff]
+            
+            output = dict(wl  = wl,\
+                          angles = angles,\
+                          dAL = dAL,\
+                          ipos = ipos,\
+                          data =  data)
+    # If generated with Matlab (old way, load the following scheme)
     else:
-        wl_filter = [True] * len(wl)
-    
-    if angle_max is not None:
-        angle_filter = angles <= angle_max
-    else:
-        angle_filter = [True] * len(angles)
+        wl  = np.round(tdata['wl_q'][0].astype(np.float),0)
+        angles = np.round(tdata['angle_q'][0].astype(np.float),0)
+        dAL = np.round(tdata['dAL_sim'][0].astype(np.float),0)
+        ipos = np.round(tdata['ipos_sim'][0].astype(np.float),4)
+        # The first of data is the ipos, the second is the thickness
+        data =  tdata['qnormSpecRadInt_sim_2D']
         
-    wl = wl[wl_filter]
-    angles = angles[angle_filter]
-    
-    for i in range(len(ipos)):
-        for j in range(len(dAL)):
-            data[i,j] = data[i,j][wl_filter, :]
-            data[i,j] = data[i,j][:, angle_filter]
+        if pos_lim is not None:
+            imin = gci(pos_lim[0], ipos)
+            imax = gci(pos_lim[1], ipos)
+            ipos = ipos[imin:imax]
+            data = data[imin:imax, :]
+        
+        if wl_limit is not None:
+            wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
+        else:
+            wl_filter = [True] * len(wl)
+        
+        angle_filter = angles <= angle_max
 
+            
+        wl = wl[wl_filter]
+        angles = angles[angle_filter]
+        
+        for i in range(len(ipos)):
+            for j in range(len(dAL)):
+                data[i,j] = data[i,j][wl_filter, :]
+                data[i,j] = data[i,j][:, angle_filter]
     
-    output = dict(wl  = wl,\
-                  angles = angles,\
-                  dAL = dAL,\
-                  ipos = ipos,\
-                  data =  data)
+        
+        output = dict(wl  = wl,\
+                      angles = angles,\
+                      dAL = dAL,\
+                      ipos = ipos,\
+                      data =  data)
     
 
     return output
@@ -142,7 +173,7 @@ def load_simdata_python(file, wl_limit = None, angle_max = None, pos_lim = None)
                   data =  new_data)
     
 
-    return output
+#     return output
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
     """
