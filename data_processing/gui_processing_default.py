@@ -15,6 +15,8 @@ calibrations_dict ={'arduino_gonio_1': dict(path_IRF = calibration_dir / 'IRF_Fl
                                        abs_calfactor = 7.10e6),\
                'raspberry_gonio2':dict(path_IRF = calibration_dir / 'IRF_Flame2OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference.txt',\
                                        abs_calfactor = 6.08E6),\
+               'catagoniometer (raspberry_gonio3)' : dict(path_IRF = calibration_dir / 'IRF_USB2000+ShortBlueFiber_wLens-F260SMA-A_PMA12-reference.txt',\
+                                                          abs_calfactor = 1),\
                'raspberry_gonio2 + polarizer':dict(path_IRF = calibration_dir / 'IRF_Flame2OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference+LPVISE100a.txt', abs_calfactor = 6.08E6),\
                'raspberry_gonio2_old':dict(path_IRF = calibration_dir / 'IRF_Flame2OrangeFiber_wLens2945K.txt',\
                                        abs_calfactor = 1.44E6)}
