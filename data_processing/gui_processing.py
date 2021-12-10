@@ -610,8 +610,8 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, err
         if p.thickness == None:
             return figure      
         
-        _, ezp_positions = np.loadtxt(p.file_EZP_time, usecols=(0,1), unpack=True)
-        
+        ezp_positions = np.loadtxt(p.file_EZP_time, usecols= 1, ndmin = 1)
+
         best_position = ezp_positions[ifile]
 
         angles, wavelengths, iNormExpSRI, wl_sim, NormSimSRI, thickness_sim = p.compare_with_simulation(file, error_landscape_file, best_position, p.vtimes[ifile])
@@ -727,7 +727,7 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
     
         max_slider = (N - 1) if N > 0 else 0
     
-        disable_slider = True if  max_slider == 0 else False
+        disable_slider = True if  N == 0 else False
         disable_comparing = False
         
     elif button_id == 'input-thickness':
