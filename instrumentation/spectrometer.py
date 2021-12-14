@@ -156,6 +156,7 @@ class SpectraMeasurement():
         """
         
         intensities = self.get_intensities()
+        sleep(0.010)
         
         if self.n_spectra > 1:
             for i in range(self.n_spectra-1):
