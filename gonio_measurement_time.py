@@ -15,7 +15,7 @@ from os.path import join as pjoin
 
 SATURATION_COUNTS = 65535 # Saturation limit of the spectrometer
 UPPER_LIM = 58000 # Max. number of counts allowed before reducing the integration time
-LOWER_LIM = 20000 # Min. number of counts allowed before incresing the integration time
+LOWER_LIM = 5000 # Min. number of counts allowed before incresing the integration time
 
 #%%
 
