@@ -17,6 +17,7 @@ from pyvisa import ResourceManager
 from time import sleep, time
 import RPi.GPIO as gpio
 from math import exp
+from numpy import array
 
 # Declaration of constants
 FACTOR = 1000000 # We'll be working with udeg, so the interger operations work fine
@@ -331,7 +332,7 @@ class RaspberryMotorController():
             Tuple containing the pins as int for the motor driver in the order: stepPIN, directionPIN, enablePIN.
             The default is (17, 27, 26).
         delay : float, optional
-            Delay between the triggers send to the motor drivers in ms. The default is 0.1 ms.
+            Delay between the triggers send to the motor drivers in ms. The default is 0.5 ms.
         shutter_angle : int
             Angle corresponding to the open and closed position of the shutter, it must be an int.The default is 180.
         """
@@ -358,8 +359,8 @@ class RaspberryMotorController():
         self.steps_counter = 0
         
         # Gonio rotation speed (hardwarewise)
-        self.speed = 144 # deg/s
-        self.sleep_offset = 0.1
+#        self.speed =  20 # deg/s  # 144 orinaly measured, but I didn't account for the accelerator!
+        self.sleep_offset = 0.5
         sleep(1)
         
     def start(self):
@@ -485,15 +486,20 @@ class RaspberryMotorController():
         # Waiting time to ensure the movement has finished, based on the hardware speed of the rotation
         etime = time() - itime
         
-        sleepting = self.sleep_offset + self.current_angle  / self.speed
-        if etime <  sleepting:
-            sleep(sleepting - etime)
+        min_time = array(delays).sum() * 5
+        
+#        sleeping = self.sleep_offset + self.current_angle  / self.speed
+        
+        sleeping = self.sleep_offset + min_time
+
+        if etime <  sleeping:
+            sleep(sleeping - etime)
           
         self.steps_counter += (-1)**(self.direction +2) *steps
         
 #        print(f'INFO: Total number of steps perfomed: {self.steps_counter:d}')
             
-    def __accelerator__(self, steps, tau = 50, max_delay = 2):
+    def __accelerator__(self, steps, tau = 50, max_delay = 1):
         a = 1/tau
         delays = [(max_delay * (exp(-i*a) + exp((i-steps + 1)*a)) +self.delay) * 0.001 for i in range(steps)]
 #        delays = [0.001 for i in range(steps)]
