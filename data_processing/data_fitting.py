@@ -257,7 +257,7 @@ def gci(value, vector):
     return idx
 
 
-def error_landscape(file, thickness, simEL, weights = None, plot = False, folder = ''):
+def error_landscape(file, thickness, simEL, weights = None, plot = False, folder = '', colormap = 'viridis'):
     """ 
     Calculates the error landscape for a given thickness with respect the emitter positon within the device. It outputs a *.el file containing two columns: the EZ position and the error at each position.
     
@@ -275,6 +275,8 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
         If True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter. The default is False.
     folder : str, optional
         String containing the name of the folder into which save the outputs. The default is ''.
+    colormap : str, optional
+        Colormap. The default is 'viridis'. 
     
     Returns
     -------
@@ -338,11 +340,15 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
     
     if plot:
         fig, [ax,ax1,ax2] = plt.subplots(ncols=3, figsize = (12,4), sharex=True, sharey=True)
-
-        ax.pcolormesh(angles_sim,wl_sim,iNormExpSRI, cmap = 'inferno', vmin=0, vmax = 1)
-        ax1.pcolormesh(angles_sim,wl_sim,NormSimSRI[ipos_min], cmap = 'inferno', vmin=0, vmax = 1)
+        
+        expNorm = iNormExpSRI.max()*1.05
+        simNorm = NormSimSRI[ipos_min].max()*1.05
+        normFactor = simNorm if simNorm > expNorm else expNorm
+        
+        ax.pcolormesh(angles_sim,wl_sim,iNormExpSRI, cmap = colormap, vmin=0, vmax = normFactor)
+        ax1.pcolormesh(angles_sim,wl_sim,NormSimSRI[ipos_min], cmap = colormap, vmin=0, vmax = normFactor)
         # Error plot
-        errplot = ax2.pcolormesh(angles_sim,wl_sim,np.abs(iNormExpSRI - NormSimSRI[ipos_min]), cmap = 'inferno')
+        errplot = ax2.pcolormesh(angles_sim,wl_sim,np.abs(iNormExpSRI - NormSimSRI[ipos_min]), cmap = colormap)
         cbar = plt.colorbar(errplot)
         cbar.set_label('Error')
         
