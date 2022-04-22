@@ -97,6 +97,9 @@ class ProcessingFolder(object):
             
             if self.file_EZP_time.exists():
                 self.fitting_flag = True
+                with open(self.file_EZP_time) as f:
+                    f.readline()
+                    self.thickness = float(f.readline().split(' ')[1])
 
             
             return True
@@ -148,7 +151,7 @@ class ProcessingFolder(object):
             return 'Data processed.\n'
         
     def create_times_vector(self):
-        """Creates a time vector based on the processed gobio files"""
+        """Creates a time vector based on the processed gonio files"""
         # Initial timestamp at the starting of the measurement
         self.t0 = np.loadtxt(self.iv_file, max_rows = 1, dtype = np.datetime64)
         files = self.files_processed_integrated
@@ -159,7 +162,7 @@ class ProcessingFolder(object):
             # Ellapsed time since start of the whole measurement
             t1 = np.loadtxt(file, max_rows = 1, dtype = np.datetime64)
             rTimes = np.loadtxt(file, skiprows = 12, usecols = 0)
-            eTime = rTimes[(rTimes.shape[0] + 1) // 2]
+            eTime = rTimes[(rTimes.shape[0] - 1) // 2]
             
             # Add the time of the goniometer at the middle of the measurement, in us
             t2 = t1 + int(eTime * 1e6) # The time needs to be add un us
@@ -167,6 +170,8 @@ class ProcessingFolder(object):
             # Calculate the relative time between the starting of the measurement (t0) and the current measruement
             vtimes[i] = np.float64(t2 - self.t0) / 1e6
         self.vtimes = vtimes
+        
+        np.savetxt(self.folder / self.processed_folder / 'times-vector.dat', vtimes.T, fmt = '%10.4f')
     
     def fit_data_time_series(self, error_landscape_file, ethickness = None):       
         # Load the error landscape file
@@ -278,18 +283,20 @@ plot_data = [go.Scatter(x=[], y=[], mode = 'lines+markers'),
           go.Scatter(x = [], y = [], mode = 'lines+markers',\
              xaxis = 'x', yaxis = 'y3'),\
           go.Scatter(x = [], y = [], mode = 'lines+markers',\
-             xaxis = 'x4', yaxis = 'y4')]
+             xaxis = 'x4', yaxis = 'y4'),
+          go.Scatter(x = [], y = [], mode = 'lines+markers',\
+             xaxis = 'x', yaxis = 'y5')]
 
 plot_layout = dict(height=800,#, width=1200,
                     margin =  {'l': 60, 'r': 60, 'b': 60, 't': 20},\
                    legend = dict(yanchor="top",
                                 y=0.99,
-                                xanchor="right",
-                                x=0.99),\
+                                xanchor="center",
+                                x=0.5),\
                    xaxis = dict(title =  "Time (s)",
                             anchor = 'y',
                             range = [0, None],
-                            domain=[0, 1]),\
+                            domain = [0.02,0.90]),\
                    yaxis = dict(range  =  [0, None],
                             anchor = 'x',
                             title =  "Voltage (V)",
@@ -305,7 +312,19 @@ plot_layout = dict(height=800,#, width=1200,
                    yaxis3 = dict(anchor =  'x',
                                overlaying = 'y',
                                side = 'right',
-                               title = {'text': 'Luminance (cd/m2'}),  
+                               showgrid =  False,
+                               rangemode = 'tozero',
+                               zeroline = False,
+                               title = {'text': 'Luminance (cd/m2'}),
+                   yaxis5 = dict(anchor =  'free',
+                               overlaying = 'y',
+                               side = 'right',
+                               title = {'text': 'EZ position'},
+                               position = 1.0,
+                               range = [0,1],
+                               zeroline = False,
+                               showgrid =  False,
+                               showline  = True,),  
                    polar =  dict(title = 'Angular profile',\
                                  domain = {'x': [0.55, 1.0],
                                            'y': [0.20, 0.55]},
@@ -336,7 +355,8 @@ plot_layout = dict(height=800,#, width=1200,
                                     'xref': 'paper',
                                     'y': 0.56,
                                     'yanchor': 'bottom',
-                                    'yref': 'paper'} ]
+                                    'yref': 'paper'} ],
+                   hovermode = 'closest'
                    # xaxis3 = dict(title =  "Wavelengths (nm)",\
                    #          range = [-90, 90],
                    #          domain=[0.55, 1],
@@ -563,12 +583,21 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, err
     
     figure['data'].append(go.Scatter(x = timeL, y = luminanceL, name = 'luminance', mode = 'lines+markers',\
              xaxis = 'x', yaxis = 'y3'))
-    figure['data'].append(go.Scatter(x = [], y = [], name = 'error', mode = 'lines+markers',\
-             xaxis = 'x4', yaxis = 'y4') )  
     
-        # Polar plot
+    if p.fitting_flag:
+        ezp_time, ezp_positions = np.loadtxt(p.file_EZP_time, usecols= (0,1), unpack =True)
+        # Add EZ plot
+        figure['data'].append(go.Scatter(x = ezp_time, y = ezp_positions, name = 'EZ position', mode = 'lines+markers',\
+             xaxis = 'x', yaxis = 'y5'))  
+        
+        epositions, error = np.loadtxt(p.folder / p.fits_folder / Path('error_landscapes') / (file.stem + '.el'), unpack=True, usecols = (0,1))
+        # Add error plot
+        figure['data'].append(go.Scatter(x = epositions, y = error, name = 'error', mode = 'lines+markers',\
+             xaxis = 'x4', yaxis = 'y4', showlegend=False, line_color = 'gray'))
+    
+    # Polar plot
     polar_angles, polar_sri = np.loadtxt(p.files_processed_integrated[ifile], usecols = (1,3), skiprows = 12, unpack=True)
-    figure['data'].append(go.Scatterpolar(theta=polar_angles, r=polar_sri, mode = 'lines + markers', showlegend=False))
+    figure['data'].append(go.Scatterpolar(theta=polar_angles, r=polar_sri, mode = 'lines + markers', showlegend=False, line_color =  'rgb(214, 39, 40)'))
     lambertian_theta = np.linspace(-90,90, 100)
     lambertian_emitter = np.cos(lambertian_theta * np.pi /180)
     figure['data'].append(go.Scatterpolar(theta=lambertian_theta, r=lambertian_emitter, mode = 'lines', line_color = 'black', line_dash ='dash',showlegend=False))
@@ -610,8 +639,6 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, err
         if p.thickness == None:
             return figure      
         
-        ezp_positions = np.loadtxt(p.file_EZP_time, usecols= 1, ndmin = 1)
-
         best_position = ezp_positions[ifile]
 
         angles, wavelengths, iNormExpSRI, wl_sim, NormSimSRI, thickness_sim = p.compare_with_simulation(file, error_landscape_file, best_position, p.vtimes[ifile])
@@ -626,13 +653,8 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, err
                  xaxis = 'x2', yaxis = 'y2', line_color = color, showlegend=False))
             figure['data'].append(go.Scatter(x = wl_sim, y = offset + NormSimSRI[:,i], mode = 'lines',\
                  xaxis = 'x2', yaxis = 'y2', line_color = color,line_dash = 'dash', showlegend=False))
-            
-        epositions, error = np.loadtxt(p.folder / p.fits_folder / Path('error_landscapes') / (file.stem + '.el'), unpack=True, usecols = (0,1))
         
-        # Add error plot
-        figure['data'].append(go.Scatter(x = epositions, y = error, name = 'error', mode = 'lines+markers',\
-             xaxis = 'x4', yaxis = 'y4', showlegend=False))  
-            
+           
         figure['layout']['annotations'][1]['text'] = f'Best EZP fit = {best_position:.2f}, dsim = {thickness_sim:.0f} nm'
         
         # Adding the vertical line
@@ -648,14 +670,14 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, err
     return figure
 
 @app.callback([Output('folder-input', 'value'),
-               Output('input-thickness', 'value'),
-               Output('dropdown-calibration', 'value')],
+               Output('dropdown-calibration', 'value'),
+               Output('radio-angle-offset', 'value')],
               [Input('button-reset', 'n_clicks')])
 def reset_all(n_clicks):
     folder = str(Path.home())
-    thickness = None
     calibration = default_calibration
-    return folder, thickness, calibration
+    angle_offset = 0
+    return folder, calibration, angle_offset
 
 @app.callback([Output('textarea-logger', 'value'),
                Output('button-compare', 'disabled'),
@@ -764,16 +786,21 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
 @app.callback([Output('textarea-files', 'value'),
               Output('dropdown-IV-files', 'options'),
               Output('dropdown-IV-files', 'value'),
-              Output('textarea-processed-files', 'value')],
+              Output('textarea-processed-files', 'value'),
+              Output('input-thickness', 'value'),
+              Output('slider-time', 'value')],
               [Input('folder-input', 'value')],
               State('dropdown-calibration', 'value'))
 def load_files(folder, calibration):
     folder = Path(folder)
     
+    slider_time_value = 0
+        
     if not folder.exists():
-        text = 'ERROR: The input folder does not exist'
+        text = text_processed = 'ERROR: The input folder does not exist'
+        options_iv_files = []
+        value_iv_file = None
         p.__init__()
-        return text, [], None, text
     else:
         if p.check_folder(folder):
             if len(p.filesL0) == 0:
@@ -794,12 +821,12 @@ def load_files(folder, calibration):
                 text_processed = 'If there are existing processed files they will be showed here.'
             # Load the default calibration too
             p.calibration = calibrations_dict[calibration] if calibration != None else None
-                
         else:
             text = text_processed = 'Check if you input the correct folder\n(It does not seem to contain any *time-series* file.)'
             options_iv_files = []
             value_iv_file = None
-        return text, options_iv_files, value_iv_file, text_processed
+
+        return text, options_iv_files, value_iv_file, text_processed, p.thickness, slider_time_value
     
 @app.callback([Output('angle-offset-input', 'disabled'),
                Output('angle-offset-input', 'value')],
