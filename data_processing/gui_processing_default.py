@@ -26,11 +26,11 @@ calibrations_dict ={'arduino_gonio_1': dict(path_IRF = calibration_dir / 'IRF_Fl
                'raspberry_gonio4+Flame1-F110+s-pol':dict(path_IRF = calibration_dir / 'IRF_Flame1OrangeFiber_wLens-F110SMA-A+100um-slit_PMA12-reference_s-pol.txt',\
                                        abs_calfactor = 1.221E6),   
                'raspberry_gonio4+Flame1-F260+u-pol':dict(path_IRF = calibration_dir / 'IRF_Flame1OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference_u-pol.txt',\
-                                       abs_calfactor = 1),\
+                                       abs_calfactor = 6.197E6),\
                'raspberry_gonio4+Flame1-F260+p-pol':dict(path_IRF = calibration_dir / 'IRF_Flame1OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference_p-pol.txt',\
-                                       abs_calfactor = 1),\
+                                       abs_calfactor = 2.789E6),\
                'raspberry_gonio4+Flame1-F260+s-pol':dict(path_IRF = calibration_dir / 'IRF_Flame1OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference_s-pol.txt',\
-                                       abs_calfactor = 1)}
+                                       abs_calfactor = 2.345E6)}
 
 default_calibration = None
 
@@ -44,11 +44,12 @@ error_landscapes_dict = {'ErrorLandscape_newPL(ref ITO/SY/Al)' : str(calibration
                          'ErrorLanscape_newPL_281nm_parallel': str(calibration_dir /'ErrorLanscape_newPL_281nm_parallel.mat'),\
                          'ErrorLanscape_newPL_281nm_parallel_p-pol' : str(calibration_dir /'ErrorLanscape_newPL_281nm_parallel_ppol.mat'),\
                          'ErrorLanscape_newPL_281nm_parallel_s-pol' : str(calibration_dir /'ErrorLanscape_newPL_281nm_parallel_spol.mat'),\
-                         'half-rod_ITO-SY-Al_295-330_isotropic_ErrorLandscape': str(extra_dir/'ITO-SY-Al_295-330_isotropic_ErrorLandscape.mat'),\
-                         'half-rod_ITO-SY-Al_295-330_isotropic_ErrorLandscape_p-pol' : str(extra_dir /'ITO-SY-Al_295-330_isotropic_ErrorLandscape_ppol.mat'),\
-                         'half-rod_ITO-SY-Al_295-330_isotropic_ErrorLandscape_s-pol' : str(extra_dir /'ITO-SY-Al_295-330_isotropic_ErrorLandscape_spol.mat')  }
+                         'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape': str(extra_dir/'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape.mat'),\
+                         'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_p-pol' : str(extra_dir /'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_ppol.mat'),\
+                         'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_s-pol' : str(extra_dir /'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_spol.mat')  }
     
-
+for f in calibration_dir.glob('*.npz'):
+    error_landscapes_dict[f.stem] = str(calibration_dir / f)
     
 
 default_error_landscape = 'ErrorLandscape_newPL(ref ITO/SY/Al)'
