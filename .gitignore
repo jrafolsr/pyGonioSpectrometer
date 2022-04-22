@@ -4,6 +4,7 @@
 *.sli
 *.integrated
 *.mat
+*.npz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
