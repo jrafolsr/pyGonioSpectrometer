@@ -47,8 +47,13 @@ def load_simdata(file, wl_limit = None, angle_max = 90, pos_lim = None):
         angles = np.round(tdata['angles'], 0)
         dAL = np.round(tdata['dAL'], 0)
         ipos = np.round(tdata['ipos'], 4)
-        # The data in the python generated ErrorLandscape file is ipos (EZP), thicknesses, wavelengths and angles
-        data =  tdata['data']
+        # The data in the python generated ErrorLandscape file is ipos (EZP), thicknesses, wavelengths and angles. I mask the nans
+        data = np.ma.array(tdata['data'] , mask=np.isnan(tdata['data']))
+        if 'luminance' in tdata.keys():
+            luminance =  np.ma.array(tdata['luminance'] , mask=np.isnan(tdata['luminance'])) 
+        if 'radiance' in tdata.keys():
+            radiance =  np.ma.array(tdata['radiance'] , mask = np.isnan(tdata['radiance'])) 
+        
 
         # Filter out unwanted ezp (ipos)
         if pos_lim != None:
@@ -70,7 +75,9 @@ def load_simdata(file, wl_limit = None, angle_max = 90, pos_lim = None):
                       angles = angles,\
                       dAL = dAL,\
                       ipos = ipos,\
-                      data =  data)
+                      data =  data,\
+                      luminance = luminance,\
+                      radiance = radiance)
     else:
         tdata = loadmat(file)
     
@@ -357,13 +364,18 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
     thickness_sim = dAL_sim[ithickness] # simulated thickness
     #     print(NormSimSRI[0].shape)
     N_pos = len(ipos_sim) 
-    Error_Landscape = np.zeros(ipos_sim.shape)
-
-    for i in range(N_pos):
-        # Substract the exp. amd sim. data and do the mean of the abs error in both axis, wavelengths and angles
-        Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+    Error_Landscape = np.ones(ipos_sim.shape) * np.inf
     
-    # Take the minimum error, which will give the best fit to the emitter position
+    for i in range(N_pos):
+        # Patch to adapt for the new ErrorLandscape format
+        if isinstance(NormSimSRI[i], (np.ma.core.MaskedArray,)):
+            # Need to check if the whole data for a certain ipos is mask, if so, then don't do anything
+            if not NormSimSRI[i].mask.all():
+                Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+        else:
+            Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+    
+    # Take the minimum error, which will give the best fit to the emitter position.
     min_error = Error_Landscape.min()
     ipos_min = Error_Landscape.argmin() # The i-th element corresponding to the min
     pos_min = ipos_sim[ipos_min] # The actual position of the emitter with the min error
