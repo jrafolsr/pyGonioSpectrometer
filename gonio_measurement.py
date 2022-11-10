@@ -17,7 +17,7 @@ frequency = 2000  # Set Frequency To 2500 Hertz
 duration = 1000  # Set Duration To 1000 ms == 1 second
 
 # Fixed parameters
-WAIT_TIME = 0.2
+WAIT_TIME = 0.25
 N_WAVELENGTHS = 2028
 
 
@@ -124,7 +124,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         current_angle = -out_angle
         print(f'\rINFO: Step # 1, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |#' + ' '* (n_steps + 2) + f'| {2/(n_steps + 3)*100:3.0f} % Done...', end =''  )
         
-        sleep(WAIT_TIME * 2) # Long enough time to make sure that it waits until the ed of the movement
+        sleep(WAIT_TIME * 3) # Long enough time to make sure that it waits until the ed of the movement
         
         k = 0
         for k in range(n_steps):        
@@ -162,7 +162,7 @@ def gonio_measurement(name_motor,angle_max, angle_step,\
         print(f'\rINFO: Step #{k+3:2d}, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |' + '#'* (n_steps + 3) + f'| {(k+4)/(n_steps + 3)*100:3.0f} % Done...' , end ='\n'  )
         
         # Wait longer time, as the angle is larger and take the spectra
-        sleep(WAIT_TIME * 2)
+        sleep(WAIT_TIME * 3)
         
         temp = flame.get_averaged_intensities()
         # Saving the data in the new scheme
