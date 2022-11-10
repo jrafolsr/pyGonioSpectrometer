@@ -17,9 +17,9 @@ from pathlib import Path
 
 
 
-def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
+def load_simdata(file, wl_limit = None, angle_max = 90, pos_lim = None):
     """
-    Reads the *.mat file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
+    Reads the *.mat or *.npz for the newer versions (needs to be upgraded) file output structure from Mattias' Error Landscape generator and returns a dictionary structure with the fields wl, angle, ipos, dAL and data.
     
     Parameters
     ----------
@@ -38,46 +38,118 @@ def load_simdata(file, wl_limit = None, angle_max = None, pos_lim = None):
         A dictionary with the fields wl, angle, ipos, dAL and data
     
     """
-    tdata = loadmat(file)
     
-    wl  = tdata['wl_q'][0].astype(np.float)
-    angles = tdata['angle_q'][0].astype(np.float)
-    dAL = tdata['dAL_sim'][0].astype(np.float)
-    ipos = tdata['ipos_sim'][0].astype(np.float)
-    # The first of data is the ipos, the second is the thickness
-    data =  tdata['qnormSpecRadInt_sim_2D']
+    file = Path(file)
     
-    if pos_lim is not None:
-        imin = gci(pos_lim[0], ipos)
-        imax = gci(pos_lim[1], ipos)
-        ipos = ipos[imin:imax]
-        data = data[imin:imax, :]
-    
-    if wl_limit is not None:
-        wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
-    else:
-        wl_filter = [True] * len(wl)
-    
-    if angle_max is not None:
-        angle_filter = angles <= angle_max
-    else:
-        angle_filter = [True] * len(angles)
+    if file.suffix == '.npz':
+        tdata = np.load(file)
+        wl  = np.round(tdata['wl'],0)
+        angles = np.round(tdata['angles'], 0)
+        dAL = np.round(tdata['dAL'], 0)
+        ipos = np.round(tdata['ipos'], 4)
+        # The data in the python generated ErrorLandscape file is ipos (EZP), thicknesses, wavelengths and angles. I mask the nans
+        data = np.ma.array(tdata['data'] , mask=np.isnan(tdata['data']))
+        if 'luminance' in tdata.keys():
+            luminance =  np.ma.array(tdata['luminance'] , mask=np.isnan(tdata['luminance'])) 
+        if 'radiance' in tdata.keys():
+            radiance =  np.ma.array(tdata['radiance'] , mask = np.isnan(tdata['radiance'])) 
         
-    wl = wl[wl_filter]
-    angles = angles[angle_filter]
-    
-    for i in range(len(ipos)):
-        for j in range(len(dAL)):
-            data[i,j] = data[i,j][wl_filter, :]
-            data[i,j] = data[i,j][:, angle_filter]
 
+        # Filter out unwanted ezp (ipos)
+        if pos_lim != None:
+            ff = (ipos >= pos_lim[0]) & (ipos <= pos_lim[1])
+            ipos = ipos[ff]
+            data = data[ff, :, :, :]
+        # Filter out unwanted wl
+        if wl_limit !=  None:
+            ff = (wl >= wl_limit[0]) & (wl <= wl_limit[1])
+            wl = wl[ff]
+            data = data[:, :, ff, :]
+        
+        # Filter out higher angles than angle_max
+        ff = angles <= angle_max
+        angles = angles[ff]
+        data = data[:, :, :, ff]
+        
+        output = dict(wl  = wl,\
+                      angles = angles,\
+                      dAL = dAL,\
+                      ipos = ipos,\
+                      data =  data,\
+                      luminance = luminance,\
+                      radiance = radiance)
+    else:
+        tdata = loadmat(file)
     
-    output = dict(wl  = wl,\
-                  angles = angles,\
-                  dAL = dAL,\
-                  ipos = ipos,\
-                  data =  data)
+        # If generated with python load the dict in the following way
+        if 'generator' in tdata.keys():
+            if tdata['generator'] == 'python':
+                wl  = np.round(tdata['wl'][0],0)
+                angles = np.round(tdata['angles'][0], 0)
+                dAL = np.round(tdata['dAL'][0], 0)
+                ipos = np.round(tdata['ipos'][0], 4)
+                # The data in the python generated ErrorLandscape file is ipos (EZP), thicknesses, wavelengths and angles
+                data =  tdata['data']
+                
+                # Filter out unwanted ezp (ipos)
+                if pos_lim != None:
+                    ff = (ipos >= pos_lim[0]) & (ipos <= pos_lim[1])
+                    ipos = ipos[ff]
+                    data = data[ff, :, :, :]
+                # Filter out unwanted wl
+                if wl_limit !=  None:
+                    ff = (wl >= wl_limit[0]) & (wl <= wl_limit[1])
+                    wl = wl[ff]
+                    data = data[:, :, ff, :]
+                
+                # Filter out higher angles than angle_max
+                ff = angles <= angle_max
+                angles = angles[ff]
+                data = data[:, :, :, ff]
+                
+                output = dict(wl  = wl,\
+                              angles = angles,\
+                              dAL = dAL,\
+                              ipos = ipos,\
+                              data =  data)
+        # If generated with Matlab (old way, load the following scheme)
+        else:
+            wl  = np.round(tdata['wl_q'][0].astype(np.float),0)
+            angles = np.round(tdata['angle_q'][0].astype(np.float),0)
+            dAL = np.round(tdata['dAL_sim'][0].astype(np.float),0)
+            ipos = np.round(tdata['ipos_sim'][0].astype(np.float),4)
+            # The first of data is the ipos, the second is the thickness
+            data =  tdata['qnormSpecRadInt_sim_2D']
+            
+            if pos_lim is not None:
+                imin = gci(pos_lim[0], ipos)
+                imax = gci(pos_lim[1], ipos)
+                ipos = ipos[imin:imax]
+                data = data[imin:imax, :]
+            
+            if wl_limit is not None:
+                wl_filter = (wl >= wl_limit[0]) & (wl <=  wl_limit[1])
+            else:
+                wl_filter = [True] * len(wl)
+            
+            angle_filter = angles <= angle_max
     
+                
+            wl = wl[wl_filter]
+            angles = angles[angle_filter]
+            
+            for i in range(len(ipos)):
+                for j in range(len(dAL)):
+                    data[i,j] = data[i,j][wl_filter, :]
+                    data[i,j] = data[i,j][:, angle_filter]
+        
+            
+            output = dict(wl  = wl,\
+                          angles = angles,\
+                          dAL = dAL,\
+                          ipos = ipos,\
+                          data =  data)
+        
 
     return output
 
@@ -142,7 +214,7 @@ def load_simdata_python(file, wl_limit = None, angle_max = None, pos_lim = None)
                   data =  new_data)
     
 
-    return output
+#     return output
 
 def interpolate_expdata(sri, wl_i, angles_i, wl_o, angles_o):
     """
@@ -226,7 +298,7 @@ def gci(value, vector):
     return idx
 
 
-def error_landscape(file, thickness, simEL, weights = None, plot = False, folder = ''):
+def error_landscape(file, thickness, simEL, weights = None, plot = False, folder = '', colormap = 'viridis'):
     """ 
     Calculates the error landscape for a given thickness with respect the emitter positon within the device. It outputs a *.el file containing two columns: the EZ position and the error at each position.
     
@@ -244,6 +316,8 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
         If True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter. The default is False.
     folder : str, optional
         String containing the name of the folder into which save the outputs. The default is ''.
+    colormap : str, optional
+        Colormap. The default is 'viridis'. 
     
     Returns
     -------
@@ -290,28 +364,37 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
     thickness_sim = dAL_sim[ithickness] # simulated thickness
     #     print(NormSimSRI[0].shape)
     N_pos = len(ipos_sim) 
-    Error_Landscape = np.zeros(ipos_sim.shape)
-
-    for i in range(N_pos):
-        # Substract the exp. amd sim. data and do the mean of the abs error in both axis, wavelengths and angles
-        Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+    Error_Landscape = np.ones(ipos_sim.shape) * np.inf
     
-    # Take the minimum error, which will give the best fit to the emitter position
+    for i in range(N_pos):
+        # Patch to adapt for the new ErrorLandscape format
+        if isinstance(NormSimSRI[i], (np.ma.core.MaskedArray,)):
+            # Need to check if the whole data for a certain ipos is mask, if so, then don't do anything
+            if not NormSimSRI[i].mask.all():
+                Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+        else:
+            Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+    
+    # Take the minimum error, which will give the best fit to the emitter position.
     min_error = Error_Landscape.min()
     ipos_min = Error_Landscape.argmin() # The i-th element corresponding to the min
     pos_min = ipos_sim[ipos_min] # The actual position of the emitter with the min error
     
     np.savetxt(pjoin(folder, foutput + '.el'),\
                np.vstack([ipos_sim, Error_Landscape]).T, header = 'Rel.ipos\t Error',\
-               fmt = '%4.2f %10.6f')
+               fmt = '%10.6f %10.6f')
     
     if plot:
         fig, [ax,ax1,ax2] = plt.subplots(ncols=3, figsize = (12,4), sharex=True, sharey=True)
-
-        ax.pcolormesh(angles_sim,wl_sim,iNormExpSRI, cmap = 'inferno', vmin=0, vmax = 1)
-        ax1.pcolormesh(angles_sim,wl_sim,NormSimSRI[ipos_min], cmap = 'inferno', vmin=0, vmax = 1)
+        
+        expNorm = iNormExpSRI.max()*1.05
+        simNorm = NormSimSRI[ipos_min].max()*1.05
+        normFactor = simNorm if simNorm > expNorm else expNorm
+        
+        ax.pcolormesh(angles_sim,wl_sim,iNormExpSRI, cmap = colormap, vmin=0, vmax = normFactor)
+        ax1.pcolormesh(angles_sim,wl_sim,NormSimSRI[ipos_min], cmap = colormap, vmin=0, vmax = normFactor)
         # Error plot
-        errplot = ax2.pcolormesh(angles_sim,wl_sim,np.abs(iNormExpSRI - NormSimSRI[ipos_min]), cmap = 'inferno')
+        errplot = ax2.pcolormesh(angles_sim,wl_sim,np.abs(iNormExpSRI - NormSimSRI[ipos_min]), cmap = colormap)
         cbar = plt.colorbar(errplot)
         cbar.set_label('Error')
         
@@ -473,23 +556,27 @@ def fit_thickness(file, simEL, plot = False, weights = None):
     dAL_sim = simEL['dAL']
 
     error_pos = np.zeros(dAL_sim.shape)
-    
+    best_pos =  np.zeros(dAL_sim.shape)
     for i,d in enumerate(dAL_sim):
-        Error_Landscape,_,_,_= error_landscape(file, d, simEL, plot = False, weights = weights)
-        error_pos[i] = Error_Landscape.min()
+        Error_Landscape,pos_min,_,_= error_landscape(file, d, simEL, plot = False, weights = weights)
+        best_pos[i], error_pos[i] = pos_min, Error_Landscape.min()
     
     # The index with the minimum error from all the thicknesses tried
     fitted_thickness = dAL_sim[error_pos.argmin()]
     
     if plot:
         fig, ax = plt.subplots()
-        ax.plot(dAL_sim, error_pos,'o-', label =  f'Min. Err. Thickness = {fitted_thickness:.0f} nm')
+        line_e, = ax.plot(dAL_sim, error_pos,'o-C0', label =  '$\Delta_{sim}^{meas}$')
         ax.set_xlabel("Thickness of the AL (nm)")
         ax.set_ylabel('$\Delta_{sim}^{meas}$')
-        ax.set_title("Error landscape for AL thickness")
-        ax.legend()
+        ax2 = ax.twinx()
+        line_p,  = ax2.plot(dAL_sim, best_pos, 'x-C1', label = 'EZ position')
+        ax2.set_ylabel('Best fit EZ position')
+        lines = [line_e, line_p]
+        ax.legend(lines, [l.get_label() for l in lines])
+        ax.set_title(f'Error landscape, Min. Err. Thickness = {fitted_thickness:.0f} nm')
         
-    return fitted_thickness, error_pos
+    return fitted_thickness, error_pos, best_pos
 
 def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     """
