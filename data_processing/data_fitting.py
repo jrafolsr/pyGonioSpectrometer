@@ -505,10 +505,20 @@ def fit_forward_position(file, thickness, simEL, folder = ''):
     position_w_time = np.zeros((N_times, ))
     min_error_w_time = np.zeros((N_times, ))
     for i in range(N_times):
-        error  = np.zeros((N_pos, ))
+        # error  = np.zeros((N_pos, )) 
+        
+        error = np.ones((N_pos, )) * np.inf # Patch to account for possible nans in the errorlandscape
         for j in range(N_pos):
         # Substract the exp. amd sim. data and do the mean of the abs error and take the minimum value,column zero from NormSimSRI corresponds to the angle zero
-            error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
+            # error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
+                    
+            # Patch to adapt for the new ErrorLandscape format
+            if isinstance(NormSimSRI[j], (np.ma.core.MaskedArray,)):
+                # Need to check if the whole data for a certain ipos is mask, if so, then don't do anything
+                if not NormSimSRI[j].mask.all():
+                    error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
+            else:
+                error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
         
         k = error.argmin()
         position_w_time[i] = ipos_sim[k]
@@ -714,7 +724,7 @@ def compare_data(file, thickness, simEL, positions, fname = None, ext = '.png', 
         ax.text(0.98,0.98, text, va = 'top', ha = 'right', transform=ax.transAxes, fontsize = 'small')
         
         if fname is None:
-            fname = file.stem
+            fname = Path(file)
             
         fig.savefig(fname.parent / (fname.stem + f'_comparison_delta={pos:.02f}' + ext), bbox_inches = 'tight')
         
