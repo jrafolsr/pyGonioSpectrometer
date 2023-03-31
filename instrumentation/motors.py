@@ -90,7 +90,7 @@ class ArduinoMotorController():
         self.motor.write_termination = '\n' # important for the Arduino to understand the commands.
         # Clear the buffer
         self.motor.clear()
-        self.speed = 110 # deg/s
+        self.speed = 100 # deg/s
 
         sleep(2.0)
         

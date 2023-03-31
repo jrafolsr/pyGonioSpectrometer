@@ -420,7 +420,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Starting measurement. First, move to the last position
     out_angle = gonio.move_angle(round(-1 * angle_max, 4))
     
-    sleep(WAIT_TIME*2) # Wait long enough for the movement to finish
+    sleep(WAIT_TIME*3) # Wait long enough for the movement to finish
     
     #Initialize the error made
     error = round(-1.0 * (angle_max - out_angle),4)
@@ -472,7 +472,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     current_angle -= out_angle
 
     
-    sleep(WAIT_TIME * 2)
+    sleep(WAIT_TIME * 3)
     
     # Taking last spectra at zero
     print('\tINFO: Taking last spectra at  0°')
