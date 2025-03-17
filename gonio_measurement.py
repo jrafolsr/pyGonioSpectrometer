@@ -70,7 +70,7 @@ def gonio_measurement(angle_max, angle_step,\
         flame = SpectraMeasurement(name_spectrometer, integration_time=integration_time, n_spectra= n_spectra)
         flame.open()
          
-        n_angles = int(angle_max*100) // int(angle_step*100) + 1
+        n_angles = int(round(angle_max / angle_step, 0)) + 1
         n_steps = (n_angles - 1) * 2
 
         # Prepraring the plot

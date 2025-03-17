@@ -21,9 +21,9 @@ INITIAL_NSPECTRA = 10
 # Port where arduino is connected
 #ARDUINO_PORT = 'ASRL7::INSTR' 
 # Angular step, can't be zero or bigger than INITIAL_MAX_ANGLE
-INITIAL_STEP = 10 
+INITIAL_STEP = 10.8 
 # Max angle gonio will do
-INITIAL_MAX_ANGLE = 80
+INITIAL_MAX_ANGLE = 86.4
 
  # Waiting time between any gonio movement in seconds. Deprecated, as teh RaspberryMotorController takes care of it, let's put it to 0.1 s just in case
 WAIT_TIME = 0.1
