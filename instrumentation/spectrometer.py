@@ -69,7 +69,7 @@ class SpectraMeasurement():
     Automatically adjusts the integration time and number of spectra.
         
     """
-    def __init__(self, device, integration_time = 1, n_spectra = 1):
+    def __init__(self, device, integration_time = 1, n_spectra = 1, max_n_spectra = 5):
         """Initalize all values"""
         if device is None:
             raise Exception('ERROR: USB spectrometer port not provided')
@@ -86,6 +86,7 @@ class SpectraMeasurement():
         self.correct_nonlinearity = True
         self.correct_dark_counts  = False
         self.saturation_counts = int(self.spec.max_intensity)
+        self.max_n_spectra = max_n_spectra
         
     def config(self, integration_time, n_spectra = 1, correct_nonlinearity = True, correct_dark_counts = False):
         """
@@ -184,7 +185,7 @@ class SpectraMeasurement():
             return self.get_wavelengths(), self.get_intensities() - self.background
         
     def adjust_integration_time(self, max_time = 5000,\
-                                lower_limit = 10000, upper_limit = 58000,
+                                lower_limit = 10000, upper_limit = 65535,
                                 noise_level = 2700):
         """
         Automatically adjusts the integration time and number of spectra to an optimal value.
@@ -197,7 +198,7 @@ class SpectraMeasurement():
         lower_limit : int, optional
             Lower count limit before increasing the integration time. The default is 10000.
         upper_limit : TYPE, optional
-            Upper count limit before decreasing the integration time.. The default is 58000.
+            Upper count limit before decreasing the integration time.. The default is 65535.
         noise_level : TYPE, optional
             Noise level counts. The default is 2700.
 
@@ -225,16 +226,16 @@ class SpectraMeasurement():
                 
             print('INFO: Lower limit reached. Adquisition increased to: {:.0f} ms x {:d}'.format(integration_time, n_spectra))
 
-        elif max_counts >= 0.9 * self.saturation_counts:
+        elif max_counts >= upper_limit:
 
-            while max_counts >= 0.9 * self.saturation_counts and integration_time > 1:
+            while max_counts >= 0.9 * upper_limit and integration_time > 1:
                 integration_time *= 0.9
                 self.config(max(integration_time, 1))
                 max_counts = self.get_intensities().max()
                 
             integration_time = max(int(integration_time), 10)
             
-            n_spectra = min(20, int(max_time / integration_time))
+            n_spectra = min(self.max_n_spectra, int(max_time / integration_time))
             
             print('INFO: Upper limit reached. Adquisition decreased to: {:.0f} ms x {:.0f}'.format(integration_time, n_spectra))
             

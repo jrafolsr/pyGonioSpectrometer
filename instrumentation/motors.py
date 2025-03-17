@@ -21,7 +21,7 @@ from numpy import array
 
 # Declaration of constants
 FACTOR = 1000000 # We'll be working with udeg, so the interger operations work fine
-MOTOR_ASTEP = int(1.8 * FACTOR) # Step of the motor in udeg, specified by the manufacturer. E.g. 1.8 deg/step
+MOTOR_ASTEP = int(round(1.8 * FACTOR, 0)) # Step of the motor in udeg, specified by the manufacturer. E.g. 1.8 deg/step
 TIMEOUT = 5000 # Max. number of seconds to wait before perform the next movement of the motor, just as a safety feature
 RESOLUTIONS = [1, 2, 4, 8, 16]
 
@@ -131,14 +131,14 @@ class ArduinoMotorController():
         """
     
     #     print(f'Input angle: {angle:.2f}°')
-        angle = int (angle * FACTOR) # Angle to udeg and to integer, for a proper modules operation
+        angle = int (round(angle * FACTOR, 0)) # Angle to udeg and to integer, for a proper modules operation
         
         if slow:
             if resolution not in RESOLUTIONS:
                 raise Exception('The resolution value is not accepted. Must be one of this: 1, 2, 4, 8 or 16.')
             A_RESOLUTION = MOTOR_ASTEP / FACTOR / resolution
     #         print(f'Using a fixed step of {A_RESOLUTION:.4f}')
-            step = angle // int(A_RESOLUTION * FACTOR)
+            step = int(round(angle / (A_RESOLUTION * FACTOR), 0))
             
             out_angle = step * A_RESOLUTION     
     #         print(f'Output angle: {out_angle:.2f}°')
@@ -347,7 +347,7 @@ class RaspberryMotorController():
         
         self.delay = delay
         self.shutter_angle = int(180)
-        self.shutter_steps = (self.shutter_angle * FACTOR ) // int(MOTOR_ASTEP // 16) # Using the default resolution of 1/16h
+        self.shutter_steps = int(round(self.shutter_angle * FACTOR  / int(MOTOR_ASTEP // 16), 0)) # Using the default resolution of 1/16h
         self.shutter_counter = 0
         # Initialize all the pinouts to LOW
         [gpio.output(i, gpio.LOW) for i in self.pinout]
@@ -360,7 +360,7 @@ class RaspberryMotorController():
         
         # Gonio rotation speed (hardwarewise)
 #        self.speed =  20 # deg/s  # 144 orinaly measured, but I didn't account for the accelerator!
-        self.sleep_offset = 0.5
+        self.sleep_offset = 0.2 # 2024-03-06 change from 1.0 to 0.2
         sleep(1)
         
     def start(self):
@@ -404,15 +404,15 @@ class RaspberryMotorController():
         """
     
     #     print(f'Input angle: {angle:.2f}°')
-        angle = int (angle * FACTOR) # Angle to udeg and to integer, for a proper modules operation
+        angle = int (round(angle * FACTOR, 0)) # Angle to udeg and to integer, for a proper modules operation
 
         if resolution not in RESOLUTIONS:
             raise Exception('The resolution value is not accepted. Must be one of this: 1, 2, 4, 8 or 16.')
         
         A_RESOLUTION = MOTOR_ASTEP / FACTOR / resolution
 #         print(f'Using a fixed step of {A_RESOLUTION:.4f}')
-        steps = angle // int(A_RESOLUTION * FACTOR)
-        
+        steps = int(round(angle / (A_RESOLUTION * FACTOR), 0))
+#        print('Number of steps done:', steps)
         out_angle = steps * A_RESOLUTION     
 #         print(f'Output angle: {out_angle:.2f}°')
               
@@ -444,7 +444,12 @@ class RaspberryMotorController():
             
         gpio.output(self.dirPIN, direction) # Pull the direction pin LOW/HIGH depending on the rotation 
         
-        sleep(0.1)
+        
+        # If there is a change of direction, I need a longer sleep time
+        if self.direction != direction:
+            sleep(0.25)
+        else:
+            sleep(0.1)
         
         if correct_drift:
             if self.direction != direction:
@@ -475,18 +480,22 @@ class RaspberryMotorController():
         
         itime = time()
         # Replacing the fix delay with the accelerator generator.
-        delays = self.__accelerator__(steps)
+        delays = self.__accelerator__(steps, max_delay = 1.0) 
         for delay in delays:
 #            for i in range(steps):
             gpio.output(self.stepPIN, gpio.HIGH)
-#            sleep(delay)
+            sleep(delay/2.0)
             gpio.output(self.stepPIN, gpio.LOW)
-            sleep(delay)
+            sleep(delay/2.0)
         
         # Waiting time to ensure the movement has finished, based on the hardware speed of the rotation
+        
+        # OBS!! I still haven't solved the time issue for larger angles, i still don#t know when the movement finished.
+        # heck also the __accelerator function, could be improved
+        
         etime = time() - itime
         
-        min_time = array(delays).sum() * 5
+        min_time = array(delays).sum() * 2.0 # 2024-03-06 change the factor from 2.5 to 2.0
         
 #        sleeping = self.sleep_offset + self.current_angle  / self.speed
         
@@ -497,7 +506,7 @@ class RaspberryMotorController():
           
         self.steps_counter += (-1)**(self.direction +2) *steps
         
-#        print(f'INFO: Total number of steps perfomed: {self.steps_counter:d}')
+#        print(f'INFO: Total number of steps performed: {self.steps_counter:d}')
             
     def __accelerator__(self, steps, tau = 50, max_delay = 1):
         a = 1/tau
@@ -534,7 +543,7 @@ class RaspberryMotorController():
         self.current_angle = self.shutter_angle
         
         self.move_steps(self.shutter_steps)
-        sleep(2)
+        sleep(0.5)
         
         print('INFO: Shutter opened.')
         
@@ -557,7 +566,7 @@ class RaspberryMotorController():
         self.shutter_counter += 1
         self.current_angle = self.shutter_angle
         self.move_steps(self.shutter_steps)
-        sleep(2)
+        sleep(0.5)
         
         print('INFO: Shutter closed.')
 

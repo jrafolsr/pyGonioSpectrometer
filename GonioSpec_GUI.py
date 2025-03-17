@@ -20,7 +20,7 @@ import numpy as np
 from datetime import datetime
 from scipy.optimize import curve_fit
 from flask import request
-
+from pyGonioSpectrometer import find_symmetry
 from GonioSpec_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME, PORT
 
 
@@ -218,7 +218,8 @@ app.layout = html.Div(children =  [
                   id = "input-n-spectra",
                   type = 'number',
                   value = INITIAL_NSPECTRA,
-                  size = '5')
+                  size = '5',
+                  debounce = True)
               ]),
           html.Div(['Step angle (°): ',
               dcc.Input(
@@ -324,7 +325,8 @@ def update_graph(n_adq, n_upd, n_clr, figure):
     
     
     if button_id == 'button-adquire':
-        temp = flame.get_intensities()
+        
+        temp = flame.get_averaged_intensities()
         
         if flame.background is not None:
             SRI.append(calculate_sri(WAVELENGTHS, temp -  flame.background))
@@ -369,7 +371,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     
     SRI = []
     CURRENT_ANGLE = []
-    n_angles = int(angle_max*100) // int(angle_step*100) + 1
+    n_angles = int(round(angle_max / angle_step, 0)) + 1
 #    n_columns = n_angles * 2 - 1 + 4
     n_steps = 2 * (n_angles -1)
     
@@ -405,7 +407,6 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Saving the data in the new scheme
     write_to_file(time() - start_time, np.nan, WAVELENGTHS, path)
     
-    # Take the dark spectra at zero, assuming shutter closed
     print('\tINFO: Taking dark spectra')
     temp = flame.get_averaged_intensities()
     flame.set_background(temp)
@@ -445,7 +446,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     for k in range(n_steps):
         # Save the angle
 #        first_row[0, k + 3] = current_angle
-        print(f'\tINFO: Taking spectra at {current_angle:.1f}°')
+        print(f'\tINFO: Taking spectra at {current_angle:.2f}°')
         temp = flame.get_averaged_intensities()
         #Warning in case of saturation
         if np.any(temp > SATURATION_COUNTS): print('WARNING: Some values are saturating...')
@@ -455,7 +456,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 #        data[:, k + 3] = temp
         
         # Plotting globals
-        TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines')
+        TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines')
               )
         SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
         CURRENT_ANGLE.append(current_angle)
@@ -475,7 +476,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
         
     # Take last angle spectra
 
-    print(f'\tINFO: Taking spectra at {current_angle:.1f}°')
+    print(f'\tINFO: Taking spectra at {current_angle:.2f}°')
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
@@ -484,7 +485,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 #    data[:,k + 4] = temp
     
     # Plotting globals
-    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.0f}°', mode = 'lines'))
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines'))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
     CURRENT_ANGLE.append(current_angle)
 
@@ -499,7 +500,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     sleep(WAIT_TIME * 2)
     
     # Taking last spectra at zero
-    print(f'\tINFO: Taking last spectra at  {current_angle:.1f}°')
+    print(f'\tINFO: Taking last spectra at  {current_angle:.2f}°')
     temp = flame.get_averaged_intensities()
     # Saving the data in the new scheme
     write_to_file(time()-start_time, current_angle, temp, path)
@@ -556,17 +557,18 @@ def refresh_ports(n_ports):
 
 
 @app.callback(Output('label-it', 'children'),
-              [Input('integration-time', 'value')],
+              [Input('integration-time', 'value'), 
+               Input('input-n-spectra', 'value')],
               prevent_initial_call = True)
-def set_integration_time(value):
+def set_integration_time(integration_time, n_spectra):
     
     if flame is not None:
         flame.open()
-        flame.config(value)
+        flame.config(integration_time, n_spectra = n_spectra)
         
-    print(f'INFO: Integration time set to {value:.4g} ms')
+    print(f'INFO: Integration time set to {integration_time:.4g} ms x N = {n_spectra: 3d}')
 
-    return f'Integration time is {value:.4g} ms'
+    return f'Integration time is {integration_time:.4g} ms x N = {n_spectra: 3d}'
 
 @app.callback(Output('motor-movement', 'children'),
               [Input('button-move-shutter', 'n_clicks'),
@@ -589,18 +591,22 @@ def gonio_and_spectra_functions(nshutter, nbkg, nautozero):
     elif button_id == 'button-autozero':
         
         if CURRENT_ANGLE  != []:
-            x = np.array(CURRENT_ANGLE)
-            y = np.array(SRI)
-            ymax = y.max()
-            y /= ymax
-            popt, _ = curve_fit(pol2_sym,x,y,p0 = [-1e-6,1,0])
-            x0 = popt[2]
-            x1 = np.linspace(x.min(),x.max(),101)
-            y1 = pol2_sym(x1, *popt) * ymax
-            TRACES.append(go.Scatter(x = x1, y = y1, name = 'fit', mode = 'lines', xaxis = 'x2', yaxis = 'y2'))
-            out_angle = gonio.move_angle(x0, correct_drift = False)
+#            x = np.array(CURRENT_ANGLE)
+#            y = np.array(SRI)
+#            ymax = y.max()
+#            y /= ymax
+#            popt, _ = curve_fit(pol2_sym,x,y,p0 = [-1e-6,1,0])
+#            x0 = popt[2]
+#            x1 = np.linspace(x.min(),x.max(),101)
+#            y1 = pol2_sym(x1, *popt) * ymax
+#            TRACES.append(go.Scatter(x = x1, y = y1, name = 'fit', mode = 'lines', xaxis = 'x2', yaxis = 'y2'))
+            
+            x0 = find_symmetry(CURRENT_ANGLE, SRI)
+            offset_angle = -x0
+            
+            out_angle = gonio.move_angle(np.round(offset_angle, 4), correct_drift = False)
             gonio.steps_counter = 0
-            print(f'INFO: Zero offset is {x0:.2f}° and moved by {out_angle:.4f}')
+            print(f'INFO: Zero offset is {offset_angle:.2f}° and moved by {out_angle:.4f}')
         else: 
             print(f'ERROR: No data to fit')
         

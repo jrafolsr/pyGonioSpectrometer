@@ -23,7 +23,7 @@ LOWER_LIM = 5000 # Min. number of counts allowed before incresing the integratio
 def gonio_time_series(filename, folder,\
                       integration_time, n_spectra, interval_gonio,\
                       name_spectrometer,\
-                      angle_step = 5, angle_max = 80,\
+                      angle_step = 5.4, angle_max = 86.4,\
                       interval_luminance = 10,\
                       stop_luminance_after = 7200,\
                       max_time = 5):
