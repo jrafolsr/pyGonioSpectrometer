@@ -10,7 +10,7 @@ import numpy as np
 
 def find_symmetry(angles, intensity):
     """
-    Uses the integrated radiant intensity (no need to be calibrated, from the spectra)  to calculate the symmetry point assuming a symmetric parabola as a reference (as a first approximation).
+    Uses the integrated radiant intensity (no need to be calibrated, from the spectra) to calculate the symmetry point.
 
     Parameters
     ----------
@@ -76,6 +76,6 @@ def find_symmetry(angles, intensity):
         offsets[i] = offset
         errors[i] = (np.mean(np.abs(positive_intensity[:M_max] - negative_intensity[:M_max])))
 
-    symmetry_point = np.round(offsets[errors.argmin()], 2)
+    symmetry_point = np.round(offsets[errors.argmin()], 4)
     
     return symmetry_point
