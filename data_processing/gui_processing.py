@@ -173,9 +173,9 @@ class ProcessingFolder(object):
         
         np.savetxt(self.folder / self.processed_folder / 'times-vector.dat', vtimes.T, fmt = '%10.4f')
     
-    def fit_data_time_series(self, error_landscape_file, ethickness = None):       
+    def fit_data_time_series(self, error_landscape_file, ethickness = None, wl_limit = (400, 800), angle_max = 70):       
         # Load the error landscape file
-        simEL = load_simdata(error_landscape_file, wl_limit=(450,800), angle_max=70)
+        simEL = load_simdata(error_landscape_file, wl_limit=wl_limit, angle_max=angle_max)
         
         #Create and additional folder for the error maps
         error_landscape_dir = self.folder / fits_folder / 'error_landscapes'
@@ -214,7 +214,7 @@ class ProcessingFolder(object):
     
     def compare_with_simulation(self, file, error_landscape_file, position, etime):
         # Load the error landscape file
-        simEL = load_simdata(error_landscape_file, wl_limit=(450,800))
+        simEL = load_simdata(error_landscape_file, wl_limit=(400,800))
         wavelengths, angles, sri = load_sri_file(file)
     
         wl_sim = simEL['wl']
@@ -256,13 +256,13 @@ class ProcessingFolder(object):
         return angles_sim, wavelengths, iNormExpSRI, wl_sim, NormSimSRI, thickness_sim
 
     def check_thickness_limits(self, thickness,error_landscape_file):
-        simEL = load_simdata(error_landscape_file, wl_limit=(450,800))
+        simEL = load_simdata(error_landscape_file, wl_limit=(400,800))
         dAL_sim = simEL['dAL']
         del(simEL)
         if (dAL_sim.min() <= thickness) & (thickness <= dAL_sim.max()):
             return 'Thickness within the simulation file limits.\n'
         else:
-            return 'ERROR: Thickness beyond te simulation file limits.\n'
+            return 'ERROR: Thickness beyond the simulation file limits.\n'
 
 p = ProcessingFolder()
 
@@ -515,6 +515,27 @@ app.layout = html.Div(children =  [
                         style = {'width' : '200'},
                         searchable = False
                         ),
+                      html.P('Wavelength fitting range (nm):'),
+                      dcc.RangeSlider(
+                            id='wl-fit-range',
+                            min = 400,
+                            max = 800,
+                            step = 50,
+                            updatemode='drag',
+                            value = [400, 800],
+                            marks = {value : f'{value}' for value in range(400,850, 50)},
+                            pushable = 50
+                                    ),
+                      html.P('Max. angle to fit (°):'),
+                      dcc.Slider(
+                            id = 'angle-fit-max',
+                            min = 5,
+                            max = 90,
+                            value = 70,
+                            updatemode='drag',                                        
+                            step = 5,
+                            marks = {value : f'{value}°' for value in range(0,100, 10)}
+                                        )
               ]),
             html.Div( id = 'debugger-container', className = 'container', children = [
                   html.H6('Debugger'),
@@ -585,7 +606,7 @@ def update_plot(n_clicks, n_clicks2,n_clicks3, folder_button, ifile, figure, err
              xaxis = 'x', yaxis = 'y3'))
     
     if p.fitting_flag:
-        ezp_time, ezp_positions = np.loadtxt(p.file_EZP_time, usecols= (0,1), unpack =True)
+        ezp_time, ezp_positions = np.loadtxt(p.file_EZP_time, usecols= (0,1), unpack =True, ndmin = 2)
         # Add EZ plot
         figure['data'].append(go.Scatter(x = ezp_time, y = ezp_positions, name = 'EZ position', mode = 'lines+markers',\
              xaxis = 'x', yaxis = 'y5'))  
@@ -700,10 +721,12 @@ def reset_all(n_clicks):
                State('button-compare', 'disabled'),
                State('slider-time', 'disabled'),
                State('slider-time', 'max'),
+               State('wl-fit-range', 'value'),
+               State('angle-fit-max', 'value')
                ])
 def update_processing_parameters(current, thickness, calibration, iv_file, angle_offset,\
                                  n_clicks, n_clicks2, n_clicks3,n_clicks4, n_click5,\
-                                 text, error_landscape_file, disable_comparing, disable_slider, max_slider):
+                                 text, error_landscape_file, disable_comparing, disable_slider, max_slider, wl_limit, angle_max):
         # Determine which button has been clicked
     ctx = dash.callback_context
 
@@ -764,7 +787,7 @@ def update_processing_parameters(current, thickness, calibration, iv_file, angle
         else:
             text += 'Data fitted.\n'
             print(error_landscape_file)
-            p.fit_data_time_series(error_landscape_file)
+            p.fit_data_time_series(error_landscape_file, wl_limit = wl_limit, angle_max = angle_max)
     
     elif button_id == 'button-compare':
         if not p.fitting_flag:

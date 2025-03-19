@@ -55,7 +55,9 @@ error_landscapes_dict = {'ErrorLandscape_newPL(ref ITO/SY/Al)' : str(calibration
                          'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape': str(extra_dir/'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape.mat'),\
                          'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_p-pol' : str(extra_dir /'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_ppol.mat'),\
                          'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_s-pol' : str(extra_dir /'half-rod_ITO-SY-Al_100-400_isotropic_ErrorLandscape_spol.mat'),\
-                         'MR-TADF_ITO-PEDOT-TADF-Al_s-pol' : str(r'C:\Users\JOANRR\Documents\16_Shi-projects\20230322_MR-TADF\MRTADF_150-180nm_isotropic_ErrorLandscape_spol.npz')}
+                         'MR-TADF_ITO-PEDOT-TADF-Al_s-pol_n=1.8' : str(r'C:\Users\JOANRR\Documents\16_Shi-projects\20230322_MR-TADF\MRTADF_150-180nm_isotropic_ErrorLandscape_spol.npz'),\
+                         'MR-TADF_ITO-PEDOT-TADF-Al_p-pol_n=1.8' : str(r'C:\Users\JOANRR\Documents\16_Shi-projects\20230322_MR-TADF\MRTADF_150-180nm_isotropic_ErrorLandscape_ppol.npz'),\
+                         'MR-TADF_ITO-PEDOT-TADF-Al_s-pol_n=1.6' : str(r'C:\Users\JOANRR\Documents\16_Shi-projects\20230322_MR-TADF\MRTADF_160-175nm_isotropic_n=1.6_ErrorLandscape_spol.npz'),}
     
 for f in calibration_dir.glob('*.npz'):
     error_landscapes_dict[f.stem] = str(calibration_dir / f)

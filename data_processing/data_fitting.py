@@ -44,9 +44,10 @@ def load_simdata(file, wl_limit = None, angle_max = 90, pos_lim = None):
     if file.suffix == '.npz':
         tdata = np.load(file)
         wl  = np.round(tdata['wl'],0)
-        angles = np.round(tdata['angles'], 0)
+        angles = np.round(tdata['angles'], 1)
         dAL = np.round(tdata['dAL'], 0)
         ipos = np.round(tdata['ipos'], 4)
+        configuration = str(tdata['configuration']).replace('\n', ',')
         # The data in the python generated ErrorLandscape file is ipos (EZP), thicknesses, wavelengths and angles. I mask the nans
         data = np.ma.array(tdata['data'] , mask=np.isnan(tdata['data']))
         if 'luminance' in tdata.keys():
@@ -77,7 +78,8 @@ def load_simdata(file, wl_limit = None, angle_max = 90, pos_lim = None):
                       ipos = ipos,\
                       data =  data,\
                       luminance = luminance,\
-                      radiance = radiance)
+                      radiance = radiance,
+                      configuration = configuration)
     else:
         tdata = loadmat(file)
     
@@ -85,7 +87,7 @@ def load_simdata(file, wl_limit = None, angle_max = 90, pos_lim = None):
         if 'generator' in tdata.keys():
             if tdata['generator'] == 'python':
                 wl  = np.round(tdata['wl'][0],0)
-                angles = np.round(tdata['angles'][0], 0)
+                angles = np.round(tdata['angles'][0], 1)
                 dAL = np.round(tdata['dAL'][0], 0)
                 ipos = np.round(tdata['ipos'][0], 4)
                 # The data in the python generated ErrorLandscape file is ipos (EZP), thicknesses, wavelengths and angles
@@ -297,8 +299,59 @@ def gci(value, vector):
        
     return idx
 
+def calculate_weights(sri, wavelengths, angles, method = 1):
+    """
+    Calculates the weights based on the specified method
 
-def error_landscape(file, thickness, simEL, weights = None, plot = False, folder = '', colormap = 'viridis'):
+    Parameters
+    ----------
+    sri : 2D numpy.array
+        The array with the spectral radiant intensity (wavelength as rows) for each of the collected angles (as columns). It assumes that there are 3 zero angles, as it is the output of process_data function.
+    wavelengths : 1D numpy.array
+        Array with the  wavelengths, should match the length of the first dimension of the sri.
+    angles : 1D np.array
+         Array with the  angles to which the data will be interpolated.
+    method : int, optional
+        Defines the method by which to calculat the weights. The default is 0.
+
+    Returns
+    -------
+    weights: np.array
+        A float or an array with the weights
+
+    """
+    
+    if method == 0:
+        weights = np.ones(angles.shape)
+    elif method == 1:
+        # calculate weights based on the asymmetry of the experimental data. Obs! I am assuming it has no offset and that the angles are as symmetric as they can be.
+        integrated = np.trapz(sri, wavelengths, axis = 0)
+        # I need to get rid of the three zero angles
+        N = angles.shape[0]
+        Nref= int((N-1) / 2)
+        # Reconstruct the arrays with the zero angles averaged
+        angles = np.concatenate([angles[0:Nref -1], [angles[Nref -1:Nref +2].mean()], angles[Nref +2:]])
+        integrated = np.concatenate([integrated[0:Nref -1], [integrated[Nref -1:Nref +2].mean()], integrated[Nref +2:]])
+        # Normalize to the forward angle
+        integrated /= integrated[int((angles.shape[0]-1)/2)]
+        pos = angles >=0.0
+        neg = angles <=0.0
+        
+        # Calculate the error, beware that I need to flip the negative angles array, since they go from neg to pos
+        error = np.abs(integrated[pos] - integrated[neg][::-1])
+        
+        base_error = 0.025
+        error_total = np.sqrt((base_error**2 + error**2))
+        weights = 1.0 / error_total
+        weights /= weights.sum()
+        weights *= len(weights) # Scaling factor for comparison if the error is calculated using weights of 1 (so I fix it here or in the error calculations)
+        
+    else:
+        raise ValueError('Weigthing method not implemented.')
+    
+    return weights
+        
+def error_landscape(file, thickness, simEL, weight_method = 0, plot = False, folder = '', colormap = 'viridis'):
     """ 
     Calculates the error landscape for a given thickness with respect the emitter positon within the device. It outputs a *.el file containing two columns: the EZ position and the error at each position.
     
@@ -310,8 +363,8 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
         Thickness of the experimental data.
     simEL : dict
         Dictionary with all the simulation data to compare the experimental data.
-    weigths : numpy.array, optional
-        You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']. The default is None.
+    weight_method : int, optional
+        You can input a vector to weight the angles in the error calculation, its manage by the weight method of the calculate_weights fuction. The default is 0, which means equall weighting for all the angles.
     plot : bool, optional
         If True, it plots a colormap of the angular spectral radiant intensity for the exp and sim data together with a colormap of the error at the best fit. It also plots the error vs the position of the emitter. The default is False.
     folder : str, optional
@@ -332,18 +385,17 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
         
     """
     
-    wavelengths, angles, sri = load_sri_file(file)
-    
-    if weights is None:
-        weights  = 1.0
-    else:
-        print('INFO: The error will be weighted.')
+    wavelengths, angles, sri = load_sri_file(file)    
     
     wl_sim = simEL['wl']
     angles_sim = simEL['angles']
     dAL_sim = simEL['dAL']
     ipos_sim = simEL['ipos']
     simData = simEL['data']
+    
+    weights  = calculate_weights(sri, wavelengths, angles, method=weight_method)
+    # Just take the weights for the angles used (from angles_sim)
+    weights = weights[0:len(angles_sim)]
 
     # Output names
     foutput = os.path.basename(file)[:-4]
@@ -371,9 +423,13 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
         if isinstance(NormSimSRI[i], (np.ma.core.MaskedArray,)):
             # Need to check if the whole data for a certain ipos is mask, if so, then don't do anything
             if not NormSimSRI[i].mask.all():
-                Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+                # Fix 01/2025 for the proper errorlandscape calculation
+                # Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean() # WRONG mean!
+                Error_Landscape[i] = np.sqrt((((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()) # WRONG mean!
         else:
-            Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+            # Fix 01/2025 for the proper errorlandscape calculation
+            # Error_Landscape[i] = (np.sqrt((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean()
+            Error_Landscape[i] = np.sqrt((((iNormExpSRI - NormSimSRI[i]) ** 2).mean(axis = 0)* weights).mean())
     
     # Take the minimum error, which will give the best fit to the emitter position.
     min_error = Error_Landscape.min()
@@ -431,7 +487,7 @@ def error_landscape(file, thickness, simEL, weights = None, plot = False, folder
             ax.plot(wl_sim, offset - i*0.25 + iNormExpSRI[:,i], '-', color = c[i], lw = 1)
             
             if i % 2 == 0:
-                ax.text(wl_sim.min(),  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.0f}°', fontsize = 'x-small')
+                ax.text(wl_sim.min(),  offset + 0.04 - 0.25*i, f'{angles_sim[i]:.1f}°', fontsize = 'x-small')
                 
         ax.set_xlabel('Wavelength (nm)')
         ax.set_ylabel('SRI (a.u.)')
@@ -516,10 +572,14 @@ def fit_forward_position(file, thickness, simEL, folder = ''):
             if isinstance(NormSimSRI[j], (np.ma.core.MaskedArray,)):
                 # Need to check if the whole data for a certain ipos is mask, if so, then don't do anything
                 if not NormSimSRI[j].mask.all():
-                    error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
+                    # FIx 01/2025
+                    # error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
+                    error[j] = np.sqrt(((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean())
             else:
+                # FIx 01/2025
                 error[j] = np.sqrt((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean()
-        
+                error[j] = np.sqrt(((iNormExpSRI[i,:] - NormSimSRI[j][:,0]) ** 2).mean())
+      
         k = error.argmin()
         position_w_time[i] = ipos_sim[k]
         min_error_w_time[i] = error[k]
@@ -540,7 +600,7 @@ def fit_forward_position(file, thickness, simEL, folder = ''):
 
 
 
-def fit_thickness(file, simEL, plot = False, weights = None):
+def fit_thickness(file, simEL, plot = False, weight_method = 0):
     """
     Finds the thickness corresponding to the minimum error using the error_landscape function.
     
@@ -552,7 +612,7 @@ def fit_thickness(file, simEL, plot = False, weights = None):
         Dictionary with all the simulation data to compare the exp data.
     plot: bool,
         If True, it plots the thickness error landscape. The default is False.
-    weigths : numpy.array, optional
+    weights : numpy.array, optional
         You can input a vector to weight the angles in the error calculation, its length must correspond to the length of the simEL['angles']. The default is None.
     
     Returns
@@ -568,7 +628,7 @@ def fit_thickness(file, simEL, plot = False, weights = None):
     error_pos = np.zeros(dAL_sim.shape)
     best_pos =  np.zeros(dAL_sim.shape)
     for i,d in enumerate(dAL_sim):
-        Error_Landscape,pos_min,_,_= error_landscape(file, d, simEL, plot = False, weights = weights)
+        Error_Landscape,pos_min,_,_= error_landscape(file, d, simEL, plot = False, weight_method = weight_method)
         best_pos[i], error_pos[i] = pos_min, Error_Landscape.min()
     
     # The index with the minimum error from all the thicknesses tried
@@ -618,7 +678,10 @@ def min_error_profile(weights, simEL_positions, exp_data, fitting = True):
     # Abs error
     # error = ((np.abs(exp_data - lc_SimData)).mean(axis = -1)).mean(axis = -1)
     # Quadratic error
-    error = ((np.sqrt((exp_data - lc_SimData) ** 2)).mean(axis = 0)).mean(axis = -1)
+    # Fix 01/2025
+    # error = ((np.sqrt((exp_data - lc_SimData) ** 2)).mean(axis = 0)).mean(axis = -1)
+    error = np.sqrt(((exp_data - lc_SimData) ** 2).mean(axis = 0).mean(axis = -1))
+
 #     print (error)
     
     if fitting:
