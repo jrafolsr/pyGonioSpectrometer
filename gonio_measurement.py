@@ -13,6 +13,7 @@ from datetime import datetime
 #import winsound # Does not work in Linux
 from pyGonioSpectrometer.instrumentation import list_ports, RaspberryMotorController, SpectraMeasurement, list_spectrometers
 from pyGonioSpectrometer.GonioSpec_init import WAIT_TIME
+from pathlib import Path
 
 # Parameters for the beeping, quite irrellevant, I'll consider to remove it
 frequency = 2000  # Set Frequency To 2500 Hertz
@@ -89,9 +90,15 @@ def gonio_measurement(angle_max, angle_step,\
         path = pjoin(folder, timestamp + filename + '.dat')
         
         with open(path, 'a') as f:
-            f.write(itimestamp + ' # Timestamp at the beginning of the measurement\n')
-            f.write(f'{integration_time:.0f} # Integration time in (ms)\n')
-            f.write(f'{n_spectra:d} # Number of spectra taken\n')
+            file_config = Path('local-config.txt')
+            if file_config.exists():
+                with open('local-config.txt') as fc:
+                    for l in fc.readlines():
+                        f.write('# ' + l)
+                        f.write('\n') if not l.endswith('\n') else None
+            f.write(f'# Timestamp at the beginning of the measurement: {itimestamp}\n')
+            f.write(f'# Integration time in (ms): {integration_time:.0f}\n')
+            f.write(f'# Number of spectra taken: {n_spectra:d}\n')
               
         # Take the dark spectra at zero
         wavelengths = flame.get_wavelengths()

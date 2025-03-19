@@ -1,0 +1,7 @@
+gonio-spectrometer setup: Raspberry Gonio 4
+Control software version: March 2025
+Spectrometer: Ocean Optics Flame (1)
+Optical fiber: 1 m 
+Instrument response function file: 'IRF_Flame2OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference.txt'
+Luminance calibration factor:  nan
+

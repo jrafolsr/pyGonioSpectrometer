@@ -22,12 +22,14 @@ from scipy.optimize import curve_fit
 from flask import request
 from pyGonioSpectrometer import find_symmetry
 from GonioSpec_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME, PORT
-
+import seaborn as sns
+from pathlib import Path
 
 flame = None
 gonio = None
 WAVELENGTHS = None
 INTENSITIES = None
+COLORS = []
 
 #LEN_WAVELENGTHS = 2028 # Just necessary if Mattias' saving scheme
 
@@ -312,7 +314,7 @@ def enable_buttons(on, resource_spectrometer, integration_time):
               prevent_initial_call = True)
 def update_graph(n_adq, n_upd, n_clr, figure):
     # Collect some data
-    global flame, gonio, WAVELENGTHS, INTENSITIES, TRACES, SRI, CURRENT_ANGLE, RESET_TRACES
+    global flame, gonio, WAVELENGTHS, INTENSITIES, TRACES, SRI, CURRENT_ANGLE, RESET_TRACES, COLORS
 
      # Determine which button has been clicked
     ctx = dash.callback_context
@@ -339,12 +341,14 @@ def update_graph(n_adq, n_upd, n_clr, figure):
                 
         figure['data'] = TRACES
         
-        figure['data'][1] = go.Scatter(x = CURRENT_ANGLE, y = SRI, name = 'counts', mode = 'markers', xaxis = 'x2', yaxis = 'y2')
+        figure['data'][1] = go.Scatter(x = CURRENT_ANGLE, y = SRI, name = 'counts', mode = 'markers', xaxis = 'x2', yaxis = 'y2',\
+              marker=dict(color=COLORS, size=10 ))#, line = dict(color='gray', width=2))
         
     elif button_id == 'button-clear':
         print('INFO: Clearing the plot')
         SRI = []
         CURRENT_ANGLE = []
+        COLORS = []
         RESET_TRACES = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'),
                  go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
              xaxis = 'x2', yaxis = 'y2')]
@@ -365,13 +369,19 @@ def update_graph(n_adq, n_upd, n_clr, figure):
                State('integration-time','value')],
               prevent_initial_call = True)
 def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_time):
-    global WAVELENGTHS, INTENSITIES, WAIT_TIME, TRACES, SRI, CURRENT_ANGLE,RESET_TRACES
+    global WAVELENGTHS, INTENSITIES, WAIT_TIME, TRACES, SRI, CURRENT_ANGLE,RESET_TRACES,COLORS
 #    global LEN_WAVELENGTHS # Just if using Mattias' scheme
     TRACES = RESET_TRACES
     
     SRI = []
     CURRENT_ANGLE = []
     n_angles = int(round(angle_max / angle_step, 0)) + 1
+    colors = sns.color_palette('rainbow', n_colors=n_angles)
+    rgb_to_hex = lambda rgb: '#{:02x}{:02x}{:02x}'.format(int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
+    # Convert them into a usable palette for Plotly
+    colors = [rgb_to_hex(color) for color in colors]
+    color0 = colors[0]
+    colors = colors[::-1]+ colors[1:]
 #    n_columns = n_angles * 2 - 1 + 4
     n_steps = 2 * (n_angles -1)
     
@@ -394,9 +404,16 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     path = pjoin(folder, timestamp + '_' + filename + '.dat')
     
     with open(path, 'a') as f:
-        f.write(itimestamp + ' # Timestamp at the beginning of the measurement\n')
-        f.write(f'{int_time:.0f} # Integration time in (ms)\n')
-        f.write(f'{Nspectra:d} # Number of spectra taken\n')
+        file_config = Path('local-config.txt')
+        if file_config.exists():
+            with open('local-config.txt') as fc:
+                for l in fc.readlines():
+                    f.write('# ' + l)
+                    f.write('\n') if not l.endswith('\n') else None
+                        
+        f.write(f'# Timestamp at the beginning of the measurement: {itimestamp}\n')
+        f.write(f'# Integration time in (ms): {int_time:.0f}\n')
+        f.write(f'# Number of spectra taken: {Nspectra:d}\n')
               
     
     print('INFO: Measurement STARTED!')
@@ -410,7 +427,7 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     print('\tINFO: Taking dark spectra')
     temp = flame.get_averaged_intensities()
     flame.set_background(temp)
-    TRACES[0] = go.Scatter(x = WAVELENGTHS, y = temp, name = 'dark', mode = 'lines')
+    TRACES[0] = go.Scatter(x = WAVELENGTHS, y = temp, name = 'dark', mode = 'lines',line=dict(color='black'))
     # Saving the data in the new scheme
     write_to_file(time()-start_time, np.nan, temp, path)
     # Saving the data in Mattias's scheme   
@@ -424,8 +441,9 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
     # Take 1st spectra at zero
     print('\tINFO: Taking spectra at 0°')
     temp = flame.get_averaged_intensities()
-    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = '0°', mode = 'lines'))
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = '0°', mode = 'lines', line=dict(color=color0)))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background)) 
+    COLORS.append(color0)
     CURRENT_ANGLE.append(0.0)
     # Saving the data in the new scheme
     write_to_file(time()-start_time, 0.0, temp, path)    
@@ -456,9 +474,10 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 #        data[:, k + 3] = temp
         
         # Plotting globals
-        TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines')
-              )
+
+        TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines',line=dict(color=colors[k])))
         SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
+        COLORS.append(colors[k])
         CURRENT_ANGLE.append(current_angle)
         
 #        # Calculating next step
@@ -485,8 +504,9 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 #    data[:,k + 4] = temp
     
     # Plotting globals
-    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines'))
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines', line=dict(color=colors[-1])))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
+    COLORS.append(colors[-1])
     CURRENT_ANGLE.append(current_angle)
 
     
@@ -509,8 +529,9 @@ def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_ti
 #    data[:, k + 5] = temp
     
     # Plotting globals    
-    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'0°', mode = 'lines'))
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'0°', mode = 'lines',line=dict(color=color0)))
     SRI.append(calculate_sri(WAVELENGTHS, temp - flame.background))
+    COLORS.append(color0)
     CURRENT_ANGLE.append(current_angle)
 
     # Close shutter
@@ -606,7 +627,7 @@ def gonio_and_spectra_functions(nshutter, nbkg, nautozero):
             
             out_angle = gonio.move_angle(np.round(offset_angle, 4), correct_drift = False)
             gonio.steps_counter = 0
-            print(f'INFO: Zero offset is {offset_angle:.2f}° and moved by {out_angle:.4f}')
+            print(f'INFO: Zero offset is {offset_angle:.4f}° and moved by {out_angle:.4f}')
         else: 
             print(f'ERROR: No data to fit')
         
