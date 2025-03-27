@@ -15,24 +15,24 @@ import matplotlib.pyplot as plt
 import traceback
 
 # Initilize the data saving parameters
-folder = Path('/home/pi/Documents/data/joan/2025/test-updated-software')
-file_id = 'example'
+folder = Path('/home/pi/Documents/data/joan/2025/TB-P3Cz/device4')
+file_id = 'TB-P3Cz'
 
 # Initialize the GONIO measurement parameters0
-integration_time = 220             # Initial guess for the integration time
+integration_time = 100             # Initial guess for the integration time
 n_spectra = 2                       # I would go for one spectra to average t have a quick initial luminance
 max_n_spectra = 2                   # Maximum number of spectra to take (to limit the time to adquire a spectra)
 angle_step = 5.4                    # Angle step in deg, needs to be a multiple of 1.8 deg
 angle_max = 86.4                   # Max angle in deg, needs t be a multple of angle_step
 max_time_per_fwd_luminance = 2000 #2500   # Max time allowed to integrate the forward luminance, in ms, it basically sets the time min step for the luminance
-max_time_per_angle = 440 #3000           # Maximum time in miliseconds allowed per angle step (number of spectra x integration time)
+max_time_per_angle = 500  #3000           # Maximum time in miliseconds allowed per angle step (number of spectra x integration time)
 
 luminance_interval = 2 # Time interval at which to take forward luminance steps in seconds
-stop_luminance_after = 60
-gonio_interval = 300    # Time interval at which to take a full gonio scan in seconds
-stop_gonio_after = 3600
+stop_luminance_after = 118
+gonio_interval = 120    # Time interval at which to take a full gonio scan in seconds
+stop_gonio_after = 3600*1 #3600*2
 
-max_intensity_angle = 0.0
+max_intensity_angle = 43.2
 
 if not folder.exists(): folder.mkdir()
 
@@ -41,7 +41,8 @@ if not folder.exists(): folder.mkdir()
 goniospectrometer = GonioLogger(file_id, folder,\
                                 angle_step = angle_step, angle_max = angle_max,\
                                 max_time_per_angle = max_time_per_fwd_luminance,\
-                                integration_time = integration_time, n_spectra = n_spectra)
+                                integration_time = integration_time, n_spectra = n_spectra,\
+                                suffix_luminance_file = 'time-series')
 
 goniospectrometer.max_intensity_angle = max_intensity_angle
 
@@ -102,9 +103,9 @@ try:
                 print('\nINFO: Taking a full goniometer scan!\n')
                 # Header and suffix for the gonio files
                 header = f'# Ellapsed time (s): {gonio_timer_fullscan.ellapsed_time():10.2f}\n'
-                suffix = f'_time-series'
+                suffix = 'time-series'
                 plt.close()
-                goniospectrometer.take_gonio_measurement(suffix = suffix, header=header)
+                goniospectrometer.take_gonio_measurement(suffix = suffix, header=header, parameter_1=gonio_timer_fullscan.ellapsed_time())
             sleep(0.001)
             
     

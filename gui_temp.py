@@ -11,33 +11,41 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_daq as daq
 from dash.dependencies import Input, Output, State
-from time import sleep
+from time import sleep, time
 from os.path import join as pjoin, isdir
 import plotly.graph_objs as go
-from instrumentation import list_spectrometers, list_ports
+from instrumentation import SpectraMeasurement, list_spectrometers, list_ports, RaspberryMotorController
 import numpy as np
+#from winsound import Beep
+from datetime import datetime
 from flask import request
-from pyGonioSpectrometer import find_symmetry, GonioLogger
-from gui_init import INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, PORT
+from pyGonioSpectrometer import find_symmetry
+from gui_init import SATURATION_COUNTS, INITIAL_INTEGRATION_TIME, INITIAL_NSPECTRA,INITIAL_STEP, INITIAL_MAX_ANGLE, INITIAL_PATH, INITIAL_FILENAME, WAIT_TIME, PORT
 import seaborn as sns
 from pathlib import Path
-global gonio
-import traceback
 
+flame = None
 gonio = None
+WAVELENGTHS = None
+INTENSITIES = None
+COLORS = []
 
 #LEN_WAVELENGTHS = 2028 # Just necessary if Mattias' saving scheme
 
 TRACE_SPECTRA = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines')]
 TRACE_SRI = [go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
              xaxis = 'x2', yaxis = 'y2')]
-RESET_TRACES = [go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
-             xaxis = 'x2', yaxis = 'y2'),\
-                go.Scatter(x=[], y=[], name = 'counts', mode = 'lines')
-                 ]
+RESET_TRACES = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'),
+                 go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
+             xaxis = 'x2', yaxis = 'y2')]
+    
+TRACES = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'),
+                 go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
+             xaxis = 'x2', yaxis = 'y2')]
 
 
 LSPECTROMETERS = list_spectrometers()
+CURRENT_ANGLE = []
 SRI = []
 
 # Some useful funcions
@@ -48,6 +56,16 @@ def calculate_sri(wavelengths, intensity):
     sri = np.trapz(intensity[ff], wavelengths[ff])
     return sri/1E6
 
+# A second order symmetrical polynomial
+pol2_sym = lambda x,a,c, x0: a*(x-x0)**2 + c
+
+def write_to_file(etime, angle, data, file, debug = False):
+    t  = np.hstack((etime, angle, data))
+    t = t.reshape((1, t.shape[0]))
+    with open(file, 'a') as f:
+        np.savetxt(f, t, fmt = '% 8.2f')
+    if debug:
+        print(f'INFO: Data saved at \n\t{file:s}')
 
 # A function to shutdown the server
 def shutdown():
@@ -60,7 +78,7 @@ def shutdown():
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-plot_data = RESET_TRACES
+plot_data = TRACES
 
 plot_layout = dict(margin =  {'l': 60, 'r': 60, 'b': 60, 't': 20},\
                    legend =  {'x': 0, 'y': 1, 'xanchor': 'left'},\
@@ -151,18 +169,18 @@ app.layout = html.Div(children =  [
                buttonText = 'clear',
                n_clicks = 0,
                ),            
-            daq.StopButton(id='button-move-left',
-               disabled = True,
-#               title = 'Moves the gonio 0.1125° left',
-               buttonText = 'Move CW',
-               n_clicks = 0,
-               ),
-         daq.StopButton(id='button-move-right',
-               disabled = True,
-#               title = 'Moves the gonio 0.1125° right',
-               buttonText = 'move CCW',
-               n_clicks = 0,
-               ),
+#            daq.StopButton(id='button-move-left',
+#               disabled = True,
+##               title = 'Moves the gonio 0.1125° left',
+#               buttonText = 'left',
+#               n_clicks = 0,
+#               ),
+#         daq.StopButton(id='button-move-right',
+#               disabled = True,
+##               title = 'Moves the gonio 0.1125° right',
+#               buttonText = 'right',
+#               n_clicks = 0,
+#               ),
          daq.StopButton(id='button-move-shutter',
                disabled = True,
 #               title = 'Opens/closes the shutter',
@@ -246,28 +264,25 @@ app.layout = html.Div(children =  [
                Output('button-clear', 'disabled'),
                Output('button-update', 'disabled'),
                Output('button-set-bkg', 'disabled'),
-               Output('button-autozero', 'disabled'),
-               Output('button-move-right', 'disabled'),\
-               Output('button-move-left', 'disabled')],
+               Output('button-autozero', 'disabled')],
               [Input('power-button', 'on')],
               [State('dropdown-spectrometers', 'value'),
-               State('folder-input', 'value'),
-               State('filename-input', 'value'),
-               State('integration-time', 'value'),
-               State('input-n-spectra','value'),
-               ],
+               State('integration-time', 'value')],
               prevent_initial_call = True)
-def enable_buttons(on, resource_spectrometer, folder, filename, integration_time, n_spectra):
-    global gonio, WAVELENGTHS
-    n_buttons = 10
+def enable_buttons(on, resource_spectrometer, integration_time):
+    global gonio, flame, WAVELENGTHS
+    n_buttons = 8
     
     try:
         if on:
-    
-            gonio = GonioLogger(filename, folder=Path(folder), integration_time = integration_time, n_spectra = n_spectra)
+
+            flame = SpectraMeasurement(resource_spectrometer, integration_time)
+            flame.open()
+            
+            gonio = RaspberryMotorController()
             
             print('INFO: Instrument is configured and ready')
-            WAVELENGTHS = gonio.wavelengths
+            WAVELENGTHS = flame.get_wavelengths()
             sleep(0.250)
             
             buttons_state = False
@@ -275,13 +290,15 @@ def enable_buttons(on, resource_spectrometer, folder, filename, integration_time
         else:
             
             print('INFO: Instrument is off')
-            gonio.shutdown()
+#            gonio.disable_gonio()
+            gonio.close()
+            flame.close()
             sleep(1)
             buttons_state = True
+#            shutdown()
 
     except Exception as e:
         print(e)
-        traceback.print_exc()
         print('ERROR: An error occured in starting the instrument')
         buttons_state = True
         
@@ -296,7 +313,7 @@ def enable_buttons(on, resource_spectrometer, folder, filename, integration_time
               prevent_initial_call = True)
 def update_graph(n_adq, n_upd, n_clr, figure):
     # Collect some data
-    global gonio, SRI
+    global flame, gonio, WAVELENGTHS, INTENSITIES, TRACES, SRI, CURRENT_ANGLE, RESET_TRACES, COLORS
 
      # Determine which button has been clicked
     ctx = dash.callback_context
@@ -306,49 +323,36 @@ def update_graph(n_adq, n_upd, n_clr, figure):
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-
+    
+    
     if button_id == 'button-adquire':
-        figure['data'] = []
         
-        temp = gonio.flame.get_averaged_intensities()  
-
-        SRI.append(calculate_sri(gonio.wavelengths, temp - gonio.background))
-        figure['data'].append(go.Scatter(x=list(range(len(SRI))), y=SRI, name = 'counts', mode = 'markers', xaxis = 'x2', yaxis = 'y2'))
+        temp = flame.get_averaged_intensities()
         
-        figure['data'].append(go.Scatter(x=gonio.wavelengths, y=temp, name = 'counts', mode = 'lines'))
+        if flame.background is not None:
+            SRI.append(calculate_sri(WAVELENGTHS, temp -  flame.background))
+            figure['data'][1] = go.Scatter(x=list(range(len(SRI))), y=SRI, name = 'counts', mode = 'markers', xaxis = 'x2', yaxis = 'y2')
+            temp -= flame.background
+        figure['data'][0] = go.Scatter(x=WAVELENGTHS, y=temp, name = 'counts', mode = 'lines')    
 
 
     elif button_id == 'button-update':
-        figure['data'] = []
+                
+        figure['data'] = TRACES
         
-        data = gonio.current_angular_scan
-        angles = np.array([el[0] for el in  data])
-        integrated_sri = [calculate_sri(gonio.wavelengths, el[1]) for el in data]
-        
-        angles_unique = np.unique(np.round(np.abs(angles), 2))
-        colors = sns.color_palette('rainbow', n_colors=len(angles_unique))
-        rgb_to_hex = lambda rgb: '#{:02x}{:02x}{:02x}'.format(int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
-        
-        color_dict = dict((f'{abs(key):.1f}', rgb_to_hex(value)) for key, value in zip(angles_unique, colors))
-        colors = [color_dict.get(f'{abs(angle):.1f}', 'black') for angle in angles]
-        
-        figure['data'].append(go.Scatter(x = angles, y = integrated_sri, name = 'counts', mode = 'markers', xaxis = 'x2', yaxis = 'y2',\
-              marker=dict(color=colors, size=10 )))
-        
-        if len(data):
-            for angle, sri in gonio.current_angular_scan:
-                key = f'{abs(angle):.1f}'
-                figure['data'].append(go.Scatter(x = gonio.wavelengths, y = sri, name = f'{angle:.1f}', mode = 'lines', line=dict(color=color_dict.get(key, 'black'))))
-        else:
-            figure['data'].append(go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'))
-
+        figure['data'][1] = go.Scatter(x = CURRENT_ANGLE, y = SRI, name = 'counts', mode = 'markers', xaxis = 'x2', yaxis = 'y2',\
+              marker=dict(color=COLORS, size=10 ))#, line = dict(color='gray', width=2))
         
     elif button_id == 'button-clear':
         print('INFO: Clearing the plot')
         SRI = []
-        gonio.current_angular_scan = []
-        figure['data'] = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'),\
-                          go.Scatter(x = [], y = [], name = 'intensity', mode = 'markers', xaxis = 'x2', yaxis = 'y2')]
+        CURRENT_ANGLE = []
+        COLORS = []
+        RESET_TRACES = [go.Scatter(x=[], y=[], name = 'counts', mode = 'lines'),
+                 go.Scatter(x=[], y=[], name = 'sri', mode = 'markers',\
+             xaxis = 'x2', yaxis = 'y2')]
+        TRACES = RESET_TRACES
+        figure['data'] = RESET_TRACES
     else:
         pass
         
@@ -358,19 +362,172 @@ def update_graph(n_adq, n_upd, n_clr, figure):
               [Input('button-start', 'n_clicks')],
               [State('folder-input', 'value'),
                State('filename-input', 'value'),
+               State('input-n-spectra','value'),
                State('input-max-angle','value'),
                State('input-step-angle','value'),
-               State('integration-time','value'),
-               State('input-n-spectra','value')],
+               State('integration-time','value')],
               prevent_initial_call = True)
-def run_measurement(n, folder, filename, angle_max, angle_step, integration_time, n_spectra):
-    global gonio
-    gonio.filename = filename
-    gonio.folder = Path(folder)
-    gonio.angle_max, gonio.angle_step, gonio.integration_time, gonio.n_spectra = angle_max, angle_step, integration_time, n_spectra
-    gonio.take_dark_spectra()
-    gonio.take_gonio_measurement(suffix = '', plot=False)
+def run_measurement(n, folder, filename, Nspectra, angle_max, angle_step, int_time):
+    global WAVELENGTHS, INTENSITIES, WAIT_TIME, TRACES, SRI, CURRENT_ANGLE,RESET_TRACES,COLORS
+#    global LEN_WAVELENGTHS # Just if using Mattias' scheme
+    TRACES = RESET_TRACES
     
+    SRI = []
+    CURRENT_ANGLE = []
+    n_angles = int(round(angle_max / angle_step, 0)) + 1
+    colors = sns.color_palette('rainbow', n_colors=n_angles)
+    COLORS = []
+    rgb_to_hex = lambda rgb: '#{:02x}{:02x}{:02x}'.format(int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
+    # Convert them into a usable palette for Plotly
+    colors = [rgb_to_hex(color) for color in colors]
+    color0 = colors[0]
+    colors = colors[::-1]+ colors[1:]
+#    n_columns = n_angles * 2 - 1 + 4
+    n_steps = 2 * (n_angles -1)
+    
+    # Data saving according to Mattias strategy (to be improved)
+#    first_row = np.zeros((1, n_columns)) # INT_TIME, N_AV + ANGLES
+#    first_row[0,0] = int_time
+#    first_row[0,1] = Nspectra
+    # First columns will be the wavelengths, second the dark spectra, the rest the angles
+#    data = np.zeros((LEN_WAVELENGTHS, n_columns)) # 2028 is the length of the output vector
+    
+    # Open the port again, just in case, and configure with the current integration time
+    flame.open()
+    flame.config(int_time, n_spectra = Nspectra)
+    
+     # Timestamps for the header and filename
+    itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+    timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss")
+    start_time = time()
+    
+    path = pjoin(folder, timestamp + '_' + filename + '.dat')
+    
+    with open(path, 'a') as f:
+        file_config = Path('local-config.txt')
+        if file_config.exists():
+            with open('local-config.txt') as fc:
+                for l in fc.readlines():
+                    f.write('# ' + l)
+                    f.write('\n') if not l.endswith('\n') else None
+                        
+        f.write(f'# Timestamp at the beginning of the measurement: {itimestamp}\n')
+        f.write(f'# Integration time in (ms): {int_time:.0f}\n')
+        f.write(f'# Number of spectra taken: {Nspectra:d}\n')
+              
+    
+    print('INFO: Measurement STARTED!')
+#    Beep(3000, 250)
+    # Getting the wavelength vector
+    WAVELENGTHS = flame.get_wavelengths()
+#    data[:,0] = WAVELENGTHS
+    # Saving the data in the new scheme
+    write_to_file(time() - start_time, np.nan, WAVELENGTHS, path)
+    
+    print('\tINFO: Taking dark spectra')
+    temp = flame.get_averaged_intensities()
+    flame.set_background(temp)
+    TRACES[0] = go.Scatter(x = WAVELENGTHS, y = temp, name = 'dark', mode = 'lines',line=dict(color='black'))
+    # Saving the data in the new scheme
+    # write_to_file(time()-start_time, np.nan, temp, path)
+         
+    # Open the shutter
+    gonio.move_shutter()
+#    [Beep(2000,200) for i in range (5)] # Reminder of measurement starting
+    sleep(WAIT_TIME)
+    
+    # Take 1st spectra at zero
+    print('\tINFO: Taking spectra at 0°')
+    temp = flame.get_averaged_intensities() - flame.background # removing teh background, update from 2025
+    
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = '0°', mode = 'lines', line=dict(color=color0)))
+    SRI.append(calculate_sri(WAVELENGTHS, temp)) 
+    COLORS.append(color0)
+    CURRENT_ANGLE.append(0.0)
+    
+    # Saving the data in the new scheme, 
+    write_to_file(time()-start_time, 0.0, temp, path)    
+    
+    # Starting measurement. First, move to the last position
+    out_angle = gonio.move_angle(-1 * angle_max)
+    sleep(WAIT_TIME+1.0) # Wait long enough for the movement to finish
+    
+    #Initialize the error made
+#    error = (angle_max - out_angle)
+    total = 0
+    current_angle = -out_angle
+
+    k = 0 
+    for k in range(n_steps):
+        # Save the angle
+#        first_row[0, k + 3] = current_angle
+        print(f'\tINFO: Taking spectra at {current_angle:.2f}°')
+        temp = flame.get_averaged_intensities() - flame.background 
+        #Warning in case of saturation
+        if np.any(temp > SATURATION_COUNTS): print('WARNING: Some values are saturating...')
+        # Saving the data in the new scheme
+        write_to_file(time()-start_time, current_angle, temp, path)
+        # Saving the data in Mattias's scheme   
+#        data[:, k + 3] = temp
+        
+        # Plotting globals
+
+        TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines',line=dict(color=colors[k])))
+        SRI.append(calculate_sri(WAVELENGTHS, temp ))
+        COLORS.append(colors[k])
+        CURRENT_ANGLE.append(current_angle)
+        
+#        # Calculating next step
+#        next_step = angle_step + error
+#    # print(f'Step = {angle_step:.0f}, Out_angle = {out_angle:.2f}, Corrected_angle = {next_step:.2f}, Error made: {error:.2}')
+#        out_angle = gonio.move_angle(next_step)  
+#        error = (next_step - out_angle)
+
+        out_angle = gonio.move_angle(angle_step)  
+        
+        
+        total += abs(out_angle)
+        current_angle += out_angle
+        sleep(WAIT_TIME)
+        
+    # Take last angle spectra
+
+    print(f'\tINFO: Taking spectra at {current_angle:.2f}°')
+    temp = flame.get_averaged_intensities() - flame.background 
+    # Saving the data in the new scheme
+    write_to_file(time()-start_time, current_angle, temp, path)
+    
+    # Plotting globals
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'{current_angle:.2f}°', mode = 'lines', line=dict(color=colors[-1])))
+    SRI.append(calculate_sri(WAVELENGTHS, temp))
+    COLORS.append(colors[-1])
+    CURRENT_ANGLE.append(current_angle)
+
+    
+    # Going back to initial angle
+    back_angle = -1 * abs(current_angle)
+    # Moving back the exact angle we moved to set everything to the initial position, so correct_drift = False
+    out_angle = gonio.move_angle(back_angle, correct_drift = False)
+    current_angle -= out_angle
+
+    
+    sleep(WAIT_TIME+1)
+    
+    # Taking last spectra at zero
+    print(f'\tINFO: Taking last spectra at  {current_angle:.2f}°')
+    temp = flame.get_averaged_intensities() - flame.background 
+    # Saving the data in the new scheme
+    write_to_file(time()-start_time, current_angle, temp, path)
+    # Saving the data in Mattias's scheme        
+    
+    # Plotting globals    
+    TRACES.append(go.Scatter(x = WAVELENGTHS, y = temp, name = f'0°', mode = 'lines',line=dict(color=color0)))
+    SRI.append(calculate_sri(WAVELENGTHS, temp))
+    COLORS.append(color0)
+    CURRENT_ANGLE.append(current_angle)
+
+    # Close shutter
+    gonio.move_shutter()
     print('INFO: Measurement DONE!')
     
     return ' '
@@ -411,7 +568,9 @@ def refresh_ports(n_ports):
               prevent_initial_call = True)
 def set_integration_time(integration_time, n_spectra):
     
-    gonio.integration_time, gonio.n_spectra = integration_time, n_spectra
+    if flame is not None:
+        flame.open()
+        flame.config(integration_time, n_spectra = n_spectra)
         
     print(f'INFO: Integration time set to {integration_time:.4g} ms x N = {n_spectra: 3d}')
 
@@ -420,12 +579,9 @@ def set_integration_time(integration_time, n_spectra):
 @app.callback(Output('motor-movement', 'children'),
               [Input('button-move-shutter', 'n_clicks'),
               Input('button-set-bkg', 'n_clicks'),
-              Input('button-autozero', 'n_clicks'),
-              Input('button-move-right', 'n_clicks'),\
-              Input('button-move-left', 'n_clicks')],
-               [State('input-step-angle','value')])
-def gonio_and_spectra_functions(nshutter, nbkg, nautozero, move_left, move_right, step_angle):
-    global gonio
+              Input('button-autozero', 'n_clicks')])
+def gonio_and_spectra_functions(nshutter, nbkg, nautozero):
+    global gonio, traces
     # Determine which button has been clicked
     ctx = dash.callback_context
 
@@ -434,32 +590,32 @@ def gonio_and_spectra_functions(nshutter, nbkg, nautozero, move_left, move_right
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     if button_id == 'button-move-shutter':
-        if gonio.gonio.shutter_is_closed:
-            gonio.gonio.open_shutter()
-        else:
-            gonio.gonio.close_shutter()
-            
+        gonio.move_shutter()
     elif button_id == 'button-set-bkg':
         print('INFO: Background spectra set')
-        gonio.background = gonio.flame.get_averaged_intensities()   
+        flame.set_background(flame.get_intensities())
     elif button_id == 'button-autozero':
-        data = gonio.current_angular_scan
-
-        if len(data)> 3:
-            angles = np.array([el[0] for el in  data])
-            integrated_sri = [calculate_sri(gonio.wavelengths, el[1]) for el in data]
-            x0 = find_symmetry(angles, integrated_sri)
+        
+        if CURRENT_ANGLE  != []:
+#            x = np.array(CURRENT_ANGLE)
+#            y = np.array(SRI)
+#            ymax = y.max()
+#            y /= ymax
+#            popt, _ = curve_fit(pol2_sym,x,y,p0 = [-1e-6,1,0])
+#            x0 = popt[2]
+#            x1 = np.linspace(x.min(),x.max(),101)
+#            y1 = pol2_sym(x1, *popt) * ymax
+#            TRACES.append(go.Scatter(x = x1, y = y1, name = 'fit', mode = 'lines', xaxis = 'x2', yaxis = 'y2'))
+            
+            x0 = find_symmetry(CURRENT_ANGLE, SRI)
             offset_angle = -x0
             
-            out_angle = gonio.gonio.move_angle(np.round(offset_angle, 4), correct_drift = False)
-            gonio.gonio.steps_counter = 0
+            out_angle = gonio.move_angle(np.round(offset_angle, 4), correct_drift = False)
+            gonio.steps_counter = 0
             print(f'INFO: Zero offset is {offset_angle:.4f}° and moved by {out_angle:.4f}')
         else: 
-            print(f'ERROR: No or too few data to fit')
-    elif button_id == 'button-move-right':
-        gonio.gonio.move_angle(np.round(step_angle, 4), correct_drift = False)
-    elif button_id == 'button-move-left':
-        gonio.gonio.move_angle(-np.round(step_angle, 4), correct_drift = False)    
+            print(f'ERROR: No data to fit')
+        
     else:
         pass
     return
@@ -471,5 +627,8 @@ if __name__ == '__main__':
     except KeyboardInterrupt as e:
         print(e)
     finally:  
+        if flame is not None:
+            flame.close()   
         if gonio is not None:
-            gonio.shutdown()
+            if not gonio.isclosed:
+                gonio.close()

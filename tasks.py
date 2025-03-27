@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from pyGonioSpectrometer.gui_init import WAIT_TIME
 from pyGonioSpectrometer import check_a_multiple_b, read_config_file
 import seaborn as sns
+import traceback
 
 SATURATION_COUNTS = 65535 # Saturation limit of the spectrometer
 UPPER_LIM = 58000 # Max. number of counts allowed before reducing the integration time
@@ -32,7 +33,7 @@ if not DEFAULT_OUTPUT_FOLDER.is_dir():
     DEFAULT_OUTPUT_FOLDER.mkdir()
 
 class GonioLogger():
-    def __init__(self, filename, folder = DEFAULT_OUTPUT_FOLDER, angle_step = 10.8, angle_max = 86.4, max_time_per_angle = 5000, integration_time = 100, n_spectra = 1, max_n_spectra= 5, max_intensity_angle = np.round(0.0, 4) ):
+    def __init__(self, filename, folder = DEFAULT_OUTPUT_FOLDER, angle_step = 10.8, angle_max = 86.4, max_time_per_angle = 5000, integration_time = 100, n_spectra = 1, max_n_spectra= 5, max_intensity_angle = np.round(0.0, 4), suffix_luminance_file = ''):
         """
         Parameters
         ----------
@@ -72,7 +73,7 @@ class GonioLogger():
         
         itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
         timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
-        self.luminance_filename = folder / (timestamp  + filename + '_luminance.dat')
+        self.luminance_filename = folder / (timestamp  + filename + ('_'+suffix_luminance_file if len(suffix_luminance_file) else '')  + '_luminance.dat')
         with open( self.luminance_filename , 'w') as f:
             f.write(self.metadata)
             f.write(f'# Timestamp at the beginning of the measurement: {itimestamp}\n')
@@ -94,6 +95,7 @@ class GonioLogger():
         self.max_intensity_angle = np.round(max_intensity_angle,4) # Define the angle that offers the maximum intensity. We assume 0.0 (forward) as the nitial guess (lambertian)
         self.max_total_counts = 0
 
+        self.current_angular_scan = []
         # Load configuration from file_config
         self.polarization_state, self.IRF_file, self.abs_calfactor = read_config_file(self.file_config)
         if not self.IRF_file.exists():
@@ -122,6 +124,7 @@ class GonioLogger():
             self.write_to_file(np.nan, integration_time, self.wavelengths, self.luminance_filename, fmt_data='%8.2f')
         
         except Exception as e:
+            traceback.print_exc()
             print(e)
             
             
@@ -147,6 +150,7 @@ class GonioLogger():
         except Exception as e:
             print('Error in take_dark_spectra() method')
             print(e)
+            traceback.print_exc()
 
         if self.gonio.shutter_is_closed:
             self.gonio.open_shutter()
@@ -174,6 +178,7 @@ class GonioLogger():
         except Exception as e:
             print('Error in update_integration_time() method')
             print(e)
+            traceback.print_exc()
     
     def take_spectra(self, debug = False):
         if debug: print(f'INFO: Taking N = {self.n_spectra:d} spectra with integration time of {self.integration_time:.0f}')
@@ -193,6 +198,7 @@ class GonioLogger():
         except Exception as e:
             print('Error in take_spectra() method')
             print(e)
+            traceback.print_exc()
     
     def set_nspectra(self, n_spectra):
         self.flame.n_spectra = self.n_spectra = n_spectra
@@ -272,6 +278,7 @@ class GonioLogger():
         """ 
 
         # Initalizing some variables
+        self.current_angular_scan = []
         current_angle = 0.0
         
         
@@ -302,7 +309,7 @@ class GonioLogger():
             timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
             start_time = monotonic()
             
-            path = self.folder / (timestamp + self.filename + suffix + '_gonio.dat')
+            path = self.folder / (timestamp + self.filename + ('_' + suffix if len(suffix) else '') + '_gonio.dat')
                         
             with open(path, 'a') as f:
                 f.write(self.metadata)
@@ -342,7 +349,8 @@ class GonioLogger():
                 self.max_total_counts = temp.max()
             
             temp = temp - self.background #  Substract the background
-
+            
+            self.current_angular_scan.append([current_angle, temp])
             
             # Saving the data in the new scheme
             tt = monotonic()-start_time
@@ -374,7 +382,7 @@ class GonioLogger():
                     self.max_total_counts = temp.max()
                 
                 temp = temp - self.background #  Substract the background
-                
+                self.current_angular_scan.append([current_angle, temp])
                 # Saving the data in the new scheme
                 tt = monotonic()-start_time
                 self.write_to_file(tt, current_angle, temp, path)
@@ -403,6 +411,7 @@ class GonioLogger():
             
             # Take last angle spectra
             temp = self.flame.get_averaged_intensities() - self.background
+            self.current_angular_scan.append([current_angle, temp])
             # Saving the data in the new scheme
             self.write_to_file(monotonic()-start_time, current_angle, temp, path)
             
@@ -421,7 +430,7 @@ class GonioLogger():
             # Wait longer time, as the angle is larger and take the spectra
             sleep(WAIT_TIME  + 1.0)
             temp = self.flame.get_averaged_intensities()- self.background
-
+            self.current_angular_scan.append([current_angle, temp])
             if plot: plot_measurement(fig, ax, self.wavelengths, temp, f'{current_angle:.1f}°', color = colors[0])
             
             # Saving the data in the new scheme
@@ -442,6 +451,7 @@ class GonioLogger():
                 
         except Exception as e:
             print(e)
+            traceback.print_exc()
             print('INFO: Some error has ocurred during the angle-scan. Going back to 0°.')
             if self.gonio != None:
                 # Go back to since some error has occurred during the gonio measurement
