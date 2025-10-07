@@ -4,4 +4,4 @@ Spectrometer: Ocean Optics Flame (1)
 Optical fiber: 1 m
 Polarizer state: s
 Instrument response function file: IRF_Flame1OrangeFiber_wLens-F260SMA-A+100um-slit_PMA12-reference
-Luminance calibration factor:  8.46e5
+Luminance calibration factor:  1

@@ -15,11 +15,11 @@ import matplotlib.pyplot as plt
 import traceback
 
 # Initilize the data saving parameters
-folder = Path('/home/pi/Documents/data/yuntao/20250512/S01D4')
-file_id = 'S01D4'
+folder = Path('/home/pi/Documents/data/shi/ionic-TADF/S01D3')
+file_id = 'S01D3'
 
 # Initialize the GONIO measurement parameters0
-integration_time = 100             # Initial guess for the integration time
+integration_time = 400             # Initial guess for the integration time
 n_spectra = 2                       # I would go for one spectra to average t have a quick initial luminance
 max_n_spectra = 2                   # Maximum number of spectra to take (to limit the time to adquire a spectra)
 angle_step = 5.4                    # Angle step in deg, needs to be a multiple of 1.8 deg
@@ -28,8 +28,8 @@ max_time_per_fwd_luminance = 2000 #2500   # Max time allowed to integrate the fo
 max_time_per_angle = 500  #3000           # Maximum time in miliseconds allowed per angle step (number of spectra x integration time)
 
 luminance_interval = 2 # Time interval at which to take forward luminance steps in seconds
-stop_luminance_after = 118
-gonio_interval = 120    # Time interval at which to take a full gonio scan in seconds
+stop_luminance_after = -1
+gonio_interval = 900    # Time interval at which to take a full gonio scan in seconds
 stop_gonio_after = 3600*12 #3600*2
 
 max_intensity_angle = 43.2

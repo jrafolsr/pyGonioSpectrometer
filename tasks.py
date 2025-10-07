@@ -20,8 +20,6 @@ SATURATION_COUNTS = 65535 # Saturation limit of the spectrometer
 UPPER_LIM = 58000 # Max. number of counts allowed before reducing the integration time
 LOWER_LIM = 10000 # Min. number of counts allowed before incresing the integration time
 
-ABS_CALFACTOR = 2.345E6 # 'raspberry_gonio4+Flame1-F260+s-pol'
-
 # Pixel size of the McScience substrate
 PIXEL_SIZE = 4e-6 # m^2
 
@@ -470,7 +468,7 @@ class GonioLogger():
             EyeResponse = np.loadtxt(self.calibration_folder / 'CIE1988photopic.txt')
             self.photopic_eye_response = (683.002 * np.interp(self.wavelengths_cutted, EyeResponse[:,0], EyeResponse[:,1]))
         
-        SpecRadInt = self.intensities * IRF * PIXEL_SIZE / ABS_CALFACTOR / (self.integration_time/1000)
+        SpecRadInt = self.intensities * IRF * PIXEL_SIZE / self.abs_calfactor / (self.integration_time/1000)
         # Cut innecessary wavelengths assuming the range 450 - 800 nm to more than enough
         self.SpecRadInt = SpecRadInt[self.filter_wavelengths]
         

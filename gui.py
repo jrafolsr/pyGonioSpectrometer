@@ -411,8 +411,9 @@ def refresh_ports(n_ports):
               prevent_initial_call = True)
 def set_integration_time(integration_time, n_spectra):
     
-    gonio.integration_time, gonio.n_spectra = integration_time, n_spectra
-        
+    #gonio.integration_time, gonio.n_spectra = integration_time, n_spectra
+    gonio.flame.config(integration_time, n_spectra)   
+    
     print(f'INFO: Integration time set to {integration_time:.4g} ms x N = {n_spectra: 3d}')
 
     return f'Integration time is {integration_time:.4g} ms x N = {n_spectra: 3d}'
