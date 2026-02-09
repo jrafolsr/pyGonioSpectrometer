@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Oct 21 10:39:44 2025
+
+@author: pi
+"""
+
+from pyGonioSpectrometer.instrumentation import list_spectrometers, SpectraMeasurement
+import numpy as np
+from pathlib import Path
+import matplotlib.pyplot as plt
+
+integration_time = 5
+n_spectra =  10
+folder =Path('/home/pi/Documents/data/joan/2025/')
+flame = SpectraMeasurement(list_spectrometers()[0],\
+                                       integration_time = integration_time,\
+                                       n_spectra = n_spectra)
+
+
+wavelengths = flame.get_wavelengths()
+
+input('Block the light and press Enter to take the dark spectra')
+
+bkg = flame.get_averaged_intensities()
+
+input('Set the lamp and press Enter to take the light spectra')
+
+spectra = flame.get_averaged_intensities()
+
+
+
+
+
+fig, ax =plt.subplots()
+
+ax.plot(wavelengths, bkg)
+ax.plot(wavelengths, spectra)
+
+spectra = spectra - bkg
+#save = input('Save the data? y/n')
+
+
+filename = 'new_vector'
+#if save == 'y':
+#    filename = input('Type the filename without extension\n')
+path = folder / (filename + '.txt')
+#    
+np.savetxt(path, np.vstack([wavelengths, spectra]).T, header='Wavelengths(nm)\tCounts', fmt = '%.6f\t%.2f')
+    
+    

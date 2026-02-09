@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Oct 13 08:33:57 2025
+
+@author: pi
+"""
+
+from pyGonioSpectrometer.instrumentation import list_spectrometers, SpectraMeasurement
+import numpy as np
+from pathlib import Path
+import matplotlib.pyplot as plt
+from time import sleep
+
+def write_to_file(excitation, parameter, data, file, fmt_data = '%8.0f'):
+        """
+        Writes into a file the data taken at each gonio step. It takes as inputs the etime (ellapsed time) and a parameter as scalars, the data (vector) and the file (as the path where to save the data). The debug is just to print it on screen or not.
+        """
+           
+        t  = np.hstack((excitation, parameter, data))
+        t = t.reshape((1, t.shape[0]))
+        with open(file, 'a') as f:
+           np.savetxt(f, t, fmt = ['% 8.2f', '% 8.2f'] + [fmt_data]*data.shape[0]) 
+
+
+integration_time = 2000
+n_spectra = 3
+excitation = 950
+
+folder = Path(r'/home/pi/Documents/data/joan/2025/202510_wavelength-calibration')
+file = folder / f'20251013_wavelength-calibration_wHamamatsu.txt'
+
+flame = SpectraMeasurement(list_spectrometers()[0],\
+                               integration_time = integration_time,\
+                               n_spectra = n_spectra)
+wavelengths = flame.get_wavelengths()
+
+fig, ax = plt.subplots()
+ax.set_ylabel('Wavelength (nm)')
+ax.set_ylabel('Intensity (a.u.)')
+
+
+print(f'Exciation wavelength set to {excitation}')
+
+intensities = flame.get_averaged_intensities()
+
+
+ax.plot(wavelengths, intensities, label=f'{wavelengths[intensities.argmax()]:.2f} nm')
+ax.legend()
+
+
+if not file.exists():
+    write_to_file(np.nan, np.nan, wavelengths, file, fmt_data = '%8.0f')
+
+write_to_file(excitation, integration_time, intensities,file,  fmt_data = '%8.02f')
+
+plt.show()
+    
+
+flame.close()

@@ -85,6 +85,8 @@ class GonioLogger():
         self.integration_time = integration_time
         self.n_spectra = n_spectra
         self.max_n_spectra = max_n_spectra
+        self.lower_lim=LOWER_LIM
+        self.upper_lim=UPPER_LIM
         
         self.background = np.zeros((N_WAVELENGTHS, ))*np.nan
         self.intensities = np.zeros((N_WAVELENGTHS, ))*np.nan
@@ -165,8 +167,8 @@ class GonioLogger():
                 sleep(1.0)
             
             self.integration_time, self.n_spectra = self.flame.adjust_integration_time(max_time = self.max_time_per_angle,\
-                                                            lower_limit = LOWER_LIM,
-                                                            upper_limit = UPPER_LIM)
+                                                            lower_limit = self.lower_lim,
+                                                            upper_limit = self.upper_lim)
             if angle is not None:
                 self.gonio.move_angle(-angle)
                 sleep(1.0)
@@ -235,11 +237,11 @@ class GonioLogger():
             all_good = 0 # Not really, as there is no spectra taken yet... but sure
         else:
             # Check for any values higher than saturation
-            if np.any(self.intensities_raw > UPPER_LIM):
+            if np.any(self.intensities_raw > self.upper_lim):
                 print('\n! WARNING: Some values close to the saturation limit. Consider lowering the integration time.')
                 all_good =  1
-            elif self.intensities_raw.max() < LOWER_LIM:
-                print(f'\n! WARNING: The max. count is less than {LOWER_LIM}. Consider increasing the integration time')
+            elif self.intensities_raw.max() < self.lower_lim:
+                print(f'\n! WARNING: The max. count is less than {self.lower_lim}. Consider increasing the integration time')
                 all_good = -1
             else:
                 all_good = 0
