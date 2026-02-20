@@ -209,14 +209,16 @@ app.layout = html.Div(children =  [
                   id = "input-step-angle",
                   type = 'number',
                   value = INITIAL_STEP,
-                  size = '5')
+                  size = '5',
+                  debounce = True)
               ]),
           html.Div(['Max. angle (°): ',
               dcc.Input(
                   id = "input-max-angle",
                   type = 'number',
                   value = INITIAL_MAX_ANGLE,
-                  size = '5')
+                  size = '5',
+                  debounce=True)
               ]),
           html.Div(['Folder: ',          
               dcc.Input(id="folder-input",
@@ -417,6 +419,39 @@ def set_integration_time(integration_time, n_spectra):
     print(f'INFO: Integration time set to {integration_time:.4g} ms x N = {n_spectra: 3d}')
 
     return f'Integration time is {integration_time:.4g} ms x N = {n_spectra: 3d}'
+
+# Obs! Potnential infinite loops, but seems o work for some reason....
+@app.callback(Output('input-step-angle','value'),
+              Input('input-step-angle','value'), # Use State to read the current value
+              prevent_initial_call=True)
+def set_step_angle(step):
+    if step is None:
+        return step
+    
+    base = 2.7
+    new_step = round(round(step/base)*base,2)
+    print(f'INFO: Setting step to {new_step:.2f} deg ')
+    return new_step
+
+
+@app.callback(Output('input-max-angle','value'),
+               Input('input-max-angle','value'),
+               State('input-step-angle','value'),
+              prevent_initial_call = True)
+def set_max_angle(max_angle, base):
+    if max_angle is None:
+        return max_angle
+    
+    n = round(max_angle/base)
+    new_max_angle = round(n*base,2)
+    while new_max_angle > 90:
+        n -=1
+        new_max_angle = round(n*base,2)
+        if new_max_angle <= base:
+            break
+    print(f'INFO: Setting max angle to {new_max_angle:.2f} deg ')
+    return new_max_angle
+
 
 @app.callback(Output('motor-movement', 'children'),
               [Input('button-move-shutter', 'n_clicks'),
