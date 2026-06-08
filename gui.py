@@ -181,6 +181,13 @@ app.layout = html.Div(children =  [
                buttonText = 'auto-zero',
                n_clicks = 0,
                ),
+                        
+        dcc.RadioItems(id = 'hemisphere-selection',
+               options=[
+                {'label': 'Full hemisphere', 'value': 'full'},
+                {'label': 'Half hemisphere', 'value': 'half'},
+                ],
+                value = 'full'),
          html.Span(id = 'motor-movement', children = [], hidden = True)
         ]),  
         html.Div(id  = 'div-inputs', className = 'column right', children = [
@@ -363,15 +370,16 @@ def update_graph(n_adq, n_upd, n_clr, figure):
                State('input-max-angle','value'),
                State('input-step-angle','value'),
                State('integration-time','value'),
-               State('input-n-spectra','value')],
+               State('input-n-spectra','value'),
+               State('hemisphere-selection', 'value')],
               prevent_initial_call = True)
-def run_measurement(n, folder, filename, angle_max, angle_step, integration_time, n_spectra):
+def run_measurement(n, folder, filename, angle_max, angle_step, integration_time, n_spectra, half_hemisphere):
     global gonio
     gonio.filename = filename
     gonio.folder = Path(folder)
     gonio.angle_max, gonio.angle_step, gonio.integration_time, gonio.n_spectra = angle_max, angle_step, integration_time, n_spectra
     gonio.take_dark_spectra()
-    gonio.take_gonio_measurement(suffix = '', plot=False)
+    gonio.take_gonio_measurement(suffix = '', plot=False, half_hemisphere= True if half_hemisphere == 'half' else False)
     
     print('INFO: Measurement DONE!')
     

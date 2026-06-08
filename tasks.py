@@ -116,7 +116,7 @@ class GonioLogger():
             self.wavelengths = self.flame.get_wavelengths()
             
             # Initializer for data processing
-            self.filter_wavelengths = (self.wavelengths >=350) & (self.wavelengths <= 850)
+            self.filter_wavelengths = (self.wavelengths >=350) & (self.wavelengths <= 950)
             self.wavelengths_cutted = self.wavelengths[self.filter_wavelengths]
             self.photopic_eye_response = None # I am going to load it later
             
@@ -129,8 +129,10 @@ class GonioLogger():
             
             
         # Making sure that the angle step and the max angel are compatible, otherwise, raise an error
-        _ , residu = divmod(self.angle_max, self.angle_step)
-        if residu != 0.0:
+#        _ , residu = divmod(self.angle_max, self.angle_step)
+        if not check_a_multiple_b(self.angle_max, self.angle_step):
+#       quotient = self.angle_max / self.angle_step
+#       if abs(quotient - round(quotient)) > 1e-5:
                 raise Exception("The angle step is not a divisor of the max. angle!")
         
     
@@ -156,7 +158,7 @@ class GonioLogger():
             self.gonio.open_shutter()
             
             
-    def update_integration_time(self, angle = None):
+    def update_integration_time(self, angle = None, factor=0.9):
         print(f'\nUpdating the integration time and number of spectra')
         if self.gonio.shutter_is_closed:
             self.gonio.open_shutter()
@@ -168,7 +170,8 @@ class GonioLogger():
             
             self.integration_time, self.n_spectra = self.flame.adjust_integration_time(max_time = self.max_time_per_angle,\
                                                             lower_limit = self.lower_lim,
-                                                            upper_limit = self.upper_lim)
+                                                            upper_limit = self.upper_lim,
+                                                            factor=factor)
             if angle is not None:
                 self.gonio.move_angle(-angle)
                 sleep(1.0)
@@ -248,7 +251,7 @@ class GonioLogger():
                 
         return all_good
     
-    def take_gonio_measurement(self, suffix = '', header = '', disable_gonio = False, plot = True, parameter_1 = np.nan):
+    def take_gonio_measurement(self, suffix = '', header = '', disable_gonio = False, plot = True, parameter_1 = np.nan,half_hemisphere = False):
         """
         Performs a complete measurement for the goniospectrometer setup, by taking spectra at every specified angle, for the whole forward hemisphere.
         
@@ -292,8 +295,230 @@ class GonioLogger():
     #        first of the list
 
             n_angles = int(round(self.angle_max / self.angle_step, 0)) + 1 # Gi e wird results if the factr I use is 100
-
+            
             n_steps = (n_angles - 1) * 2
+    
+            # Prepraring the plot
+            if plot:
+                colors = sns.color_palette('rainbow', n_colors= n_angles)
+                plt.ion() # Will update during the measurement
+                fig, ax = plt.subplots()
+                ax.set_ylabel('Counts')
+                ax.set_xlabel('Wavelength (nm)')
+                plot_measurement(fig, ax, [], [])
+            
+            # Timestamps for the header and filename
+            itimestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")
+            timestamp = datetime.now().strftime("%Y-%m-%dT%Hh%Mm%Ss_")
+            start_time = monotonic()
+            
+            path = self.folder / (timestamp + self.filename + ('_' + suffix if len(suffix) else '') + '_gonio.dat')
+                        
+            with open(path, 'a') as f:
+                f.write(self.metadata)
+                header = header if header.startswith('#') else '# ' + header
+                header = header if header.endswith('\n') else header + '\n'
+                f.write(header)
+                f.write(f'# Timestamp at the beginning of the measurement: {itimestamp}\n')
+                f.write(f'# Integration time in (ms): {self.integration_time:.0f}\n')
+                f.write(f'# Number of spectra taken: {self.n_spectra:d}\n')
+                f.write(f'# Time(s) Angle(deg) Wavelength(nm) -> (row 1) Counts() -> from row 2\n')
+            
+            
+            
+            # Saving the data in the new scheme
+            self.write_to_file(monotonic()-start_time, np.nan, self.wavelengths, path, fmt_data = '%8.2f')
+            # I am going to save the data with the bkg already substracted
+#            self.write_to_file(monotonic()-start_time, np.nan, self.background, path)
+          
+#            if plot: plot_measurement(fig, ax, self.wavelengths, self.background, 'dark', color = 'black')
+
+            sleep(0.05)
+            
+            # Open the shutter if it is closed
+            if self.gonio.shutter_is_closed:
+                self.gonio.open_shutter()
+    
+            sleep(WAIT_TIME)
+            
+            # Take spectra at zero
+            print(f'\rINFO Step # 0, moved  {0.0: >4.1f}°, position {0.0: >+5.1f}° |' + ' '* (n_steps + 3) + f'| {1/(n_steps + 3)*100:3.0f} % Done...', end =''  )
+                  
+            temp = self.flame.get_averaged_intensities()
+            self.max_total_counts = temp.max() # Number of max counts at zero
+            if temp.max() > self.max_total_counts:
+                print(f'\nMaximum intensity angle updated from {self.max_intensity_angle:.4f} to {np.round(current_angle, 4):.4f}')
+                self.max_intensity_angle = np.round(current_angle, 4)
+                self.max_total_counts = temp.max()
+            
+            temp = temp - self.background #  Substract the background
+            
+            self.current_angular_scan.append([current_angle, temp])
+            
+            # Saving the data in the new scheme
+            tt = monotonic()-start_time
+            self.write_to_file(tt, 0.0, temp, path)
+            self.write_to_file(parameter_1 + tt, self.integration_time, temp, self.luminance_filename)
+            
+            if plot: plot_measurement(fig, ax, self.wavelengths, temp, '0.0°', color = colors[0])
+            
+    
+            # Move to the last position
+            out_angle = self.gonio.move_angle(-1.0 * self.angle_max)
+
+    #        # Initialize the error made in each step
+    #        error = (angle_max - out_angle)
+            total = 0
+            current_angle = -out_angle
+            print(f'\rINFO: Step # 1, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |#' + ' '* (n_steps + 2) + f'| {2/(n_steps + 3)*100:3.0f} % Done...', end =''  )
+            # Wait longer time, as the angle is larger and take the spectra 
+            sleep(WAIT_TIME  + 1.0) # Long enough time to make sure that it waits until the ed of the movement
+            
+            k = 0
+            for k in range(n_steps):        
+                # Get the whole spectra (wl and I)
+                temp = self.flame.get_averaged_intensities()
+ 
+                if temp.max() > self.max_total_counts:
+                    print(f'\nMaximum intensity angle updated from {self.max_intensity_angle:.4f} to {np.round(current_angle, 4):.4f}')
+                    self.max_intensity_angle = np.round(current_angle, 4)
+                    self.max_total_counts = temp.max()
+                
+                temp = temp - self.background #  Substract the background
+                self.current_angular_scan.append([current_angle, temp])
+                # Saving the data in the new scheme
+                tt = monotonic()-start_time
+                self.write_to_file(tt, current_angle, temp, path)
+                
+                if round(current_angle, 4) == round(0.0, 4):
+                    self.write_to_file(parameter_1 + tt, self.integration_time, temp, self.luminance_filename)
+            
+                # Check for any values higher than saturation
+                if np.any(temp > SATURATION_COUNTS): print('WARNING: Some values are saturating. Consider lowering the integration time.')
+                
+                if plot and k % 2 == 0:
+                    color_offset = -1-k if k < n_angles else k+1-n_angles
+#                    print(color_offset, k, n_angles)
+                    plot_measurement(fig, ax, self.wavelengths, temp, f'{current_angle:.1f}°', color = colors[color_offset])
+                
+                # Moving the gonio
+                out_angle = self.gonio.move_angle(self.angle_step) 
+                
+                total += abs(out_angle)
+    
+                current_angle += out_angle * np.sign(self.angle_step) # The sign is for the case in which I only do the half hemisphere.s
+                
+                print(f'\rINFO: Step #{k+2:2d}, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |' + '#'* (k + 2) + ' '* (n_steps - k + 1) + f'| {(k+3)/(n_steps + 3)*100:3.0f} % Done...' , end =''  )
+                if half_hemisphere & (k == n_steps // 2 -1):
+                    print(f'\nReversing the angle step at {current_angle: >+5.1f}°, only taking half the hemisphere')
+                    self.angle_step *= -1
+                sleep(WAIT_TIME)
+            
+#            Setting back the angle step, to its original value if the half hemisphere has been set
+            if half_hemisphere:
+                self.angle_step *= -1
+                
+            # Take last angle spectra
+            temp = self.flame.get_averaged_intensities() - self.background
+            self.current_angular_scan.append([current_angle, temp])
+            # Saving the data in the new scheme
+            self.write_to_file(monotonic()-start_time, current_angle, temp, path)
+            
+            # Plot the data
+            if plot: plot_measurement(fig, ax, self.wavelengths, temp, f'{current_angle:.1f}°', color = colors[-1])
+
+            
+            # Go back to zero
+            back_angle = -1 * abs(current_angle) if not half_hemisphere else abs(current_angle) # Quick fix for a scanning the same half hemisphere
+            # Moving back the exact angle we moved to set everything to the initial position, so correct_drift = False
+            out_angle = self.gonio.move_angle(back_angle, correct_drift = False)
+            current_angle = current_angle - out_angle if not half_hemisphere else current_angle + out_angle
+            
+            print(f'\rINFO: Step #{k+3:2d}, moved {out_angle: >4.1f}°, position {current_angle: >+5.1f}° |' + '#'* (n_steps + 3) + f'| {(k+4)/(n_steps + 3)*100:3.0f} % Done...' , end ='\n'  )
+            
+            # Wait longer time, as the angle is larger and take the spectra
+            sleep(WAIT_TIME  + 1.0)
+            temp = self.flame.get_averaged_intensities()- self.background
+            self.current_angular_scan.append([current_angle, temp])
+            if plot: plot_measurement(fig, ax, self.wavelengths, temp, f'{current_angle:.1f}°', color = colors[0])
+            
+            # Saving the data in the new scheme
+            tt = monotonic()-start_time
+            self.write_to_file(monotonic()-start_time, current_angle, temp, path)
+            self.write_to_file(parameter_1 + tt, self.integration_time, temp, self.luminance_filename)
+            
+
+            if disable_gonio: self.gonio.disable_gonio()
+              
+            
+            if plot:
+                plt.close(fig)
+    
+        except KeyboardInterrupt:
+            print('INFO: The angle-scan has been cancelled by the user. Going back to 0°.')
+            if self.gonio != None:
+                # Go back to since the spectrogoniometer movement has been cancelled.
+                back_angle = -1 * current_angle          
+                out_angle = self.gonio.move_angle(back_angle)
+                
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
+            print('INFO: Some error has ocurred during the angle-scan. Going back to 0°.')
+            if self.gonio != None:
+                # Go back to since some error has occurred during the gonio measurement
+                back_angle = -1 * current_angle
+                out_angle = self.gonio.move_angle(back_angle)
+
+        finally:
+                pass
+    
+    def take_gonio_measurement_halfhemisphere(self, suffix = '', header = '', disable_gonio = False, plot = True, parameter_1 = np.nan,full_hemisphere = True):
+        """
+        Performs a complete measurement for the goniospectrometer setup, by taking spectra at every specified angle, for the whole forward hemisphere.
+        
+        Parameters
+        ----------
+        angle_max : int or float
+            Maximum angle to scan with the goniometer in deg.
+        angle_step : int or float
+            Angular step that the motor will perform in deg. Preferably a divisor of angle_max and integer, the program does not check for this conditions to be fullfilled.
+        gonio: RaspberryMotorController or ArduinoMotorControllerobject
+            Object to controll the motor.
+        name_spectrometer : seabreeze.spectrometers.Spectrometer class
+            The spectrometer resource as the specified class. You can get it from list_spectrometers().
+        integration_time : int or float
+            Sets the integration time in ms.
+        n_spectra: int
+            Number of spectra that will be averaged.
+        filename : str, optional
+            A string containing the output filename. The default is 'gonio_measurement'.
+        folder : str, optional
+            Path, relative or absolute, to the directory where to save the data. Should exists, the program does not check if it does. The default is '.'.
+        disable_gonio : boolean, optional
+            Whether to disable the goniometer motor after the measruement. The default is False.
+        plot : boolean, optional
+            Whether to plot or not the data. It is better to set it to false for a time series measurement, otherwise one will end with to many open windows. The default is True.
+    
+        """ 
+
+        # Initalizing some variables
+        self.current_angular_scan = []
+        current_angle = 0.0
+        
+        
+        try:
+            if np.all(np.isnan(self.background)):
+                print('INFO: Taking dark spectra....')
+                self.take_dark_spectra()
+            
+            
+            # Create the object instance taht will control the spectrometer, assuming it is the
+    #        first of the list
+
+            n_angles = int(round(self.angle_max / self.angle_step, 0)) + 1 # Gi e wird results if the factr I use is 100
+            
+            n_steps = (n_angles - 1) * 2 if full_hemisphere else (n_angles - 1)
     
             # Prepraring the plot
             if plot:

@@ -186,7 +186,8 @@ class SpectraMeasurement():
         
     def adjust_integration_time(self, max_time = 5000,\
                                 lower_limit = 10000, upper_limit = 65535,
-                                noise_level = 2700):
+                                noise_level = 2700,
+                                factor = 0.9):
         """
         Automatically adjusts the integration time and number of spectra to an optimal value.
         At the moment, the max n_spectra is 20. In the future it will be adjustable.
@@ -228,8 +229,8 @@ class SpectraMeasurement():
 
         elif max_counts >= upper_limit:
 
-            while max_counts >= 0.9 * upper_limit and integration_time > 1:
-                integration_time *= 0.9
+            while max_counts >= factor* upper_limit and integration_time > 1:
+                integration_time *= factor
                 self.config(max(integration_time, 1))
                 max_counts = self.get_intensities().max()
                 

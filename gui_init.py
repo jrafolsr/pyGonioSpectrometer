@@ -26,7 +26,7 @@ INITIAL_STEP = 10.8
 INITIAL_MAX_ANGLE = 86.4
 
  # Waiting time between any gonio movement in seconds. Deprecated, as teh RaspberryMotorController takes care of it, let's put it to 0.1 s just in case
-WAIT_TIME = 0.1
+WAIT_TIME = 0.5
 
 #--------------------------------- Saving data---------------------------------
 # Default path to the directotry where the file will be saved, unless later modified by user
